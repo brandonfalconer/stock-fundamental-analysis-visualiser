@@ -129,6 +129,32 @@ financials_row_mapping = {
 	'netInvestedCapital': 'Net Invested Capital',
 }
 
+earnings_estimates_row_mappings = {
+	"date": "Date",
+	"period": "Period",
+	"growth": "Growth",
+	"earningsEstimateAvg": "Earnings Est Avg",
+	"earningsEstimateLow": "Earnings Est Low",
+	"earningsEstimateHigh": "Earnings Est High",
+	"earningsEstimateYearAgoEps": "Earnings Est Year Ago EPS",
+	"earningsEstimateNumberOfAnalysts": "Earnings Est Num of Analysts",
+	"earningsEstimateGrowth": "Earnings Est Growth",
+	"revenueEstimateAvg": "Revenue Est Avg",
+	"revenueEstimateLow": "Revenue Est Low",
+	"revenueEstimateHigh": "Revenue Est High",
+	"revenueEstimateYearAgoEps": "Revenue Est Year Ago EPS",
+	"revenueEstimateNumberOfAnalysts": "Revenue Est Number of Analysts",
+	"revenueEstimateGrowth": "Revenue Est Growth",
+	"epsTrendCurrent": "EPS Trend Current",
+	"epsTrend7daysAgo": "EPS Trend 7 Days Ago",
+	"epsTrend30daysAgo": "EPS Trend 30 Days Ago",
+	"epsTrend60daysAgo": "EPS Trend 60 Days Ago",
+	"epsTrend90daysAgo": "EPS Trend 90 Days Ago",
+	"epsRevisionsUpLast7days": "EPS Rev Up Last 7 Days",
+	"epsRevisionsUpLast30days": "EPS Rev Up Last 30 Days",
+	"epsRevisionsDownLast7days": "EPS Rev Down Last 7 Days"
+}
+
 income_statement_order = [
 	'totalRevenue',
 	'costOfRevenue',
@@ -233,4 +259,22 @@ balance_sheet_order = [
 	'preferredStockTotalEquity',
 	'totalStockholderEquity',
 	'commonStockSharesOutstanding',
+	'propertyPlantAndEquipmentNet',
+	'netWorkingCapital',
+	'accumulatedAmortization'
+]
+
+earnings_estimates_order = [
+	"earningsEstimateAvg"
+	"earningsEstimateLow"
+	"earningsEstimateHigh"
+	"earningsEstimateYearAgoEps"
+	"earningsEstimateNumberOfAnalysts"
+	"earningsEstimateGrowth"
+	"revenueEstimateAvg"
+	"revenueEstimateLow"
+	"revenueEstimateHigh"
+	"revenueEstimateYearAgoEps"
+	"revenueEstimateNumberOfAnalysts"
+	"revenueEstimateGrowth"
 ]

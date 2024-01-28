@@ -1,4 +1,6 @@
-Data
 .env
 .idea
+Data
+Data_Output
 Data_Retrieval/__pycache__
+Data_Formatting/__pycache__
