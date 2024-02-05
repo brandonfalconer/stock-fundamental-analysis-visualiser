@@ -9,24 +9,28 @@ from bokeh.io import save, output_file
 from bokeh.layouts import column
 from bokeh.models import Div
 
-from Data_Formatting.css_styling import INDIVIDUAL_COMPANY_TABLE_STYLE
+import Data_Retrieval.eodhd_apis as eodhd
+from Data_Formatting.css_styling import individual_company_table_css
 from Data_Retrieval.constant_data_structures import (financials_row_mapping, earnings_estimates_row_mappings,
 													 income_statement_order, cash_flow_statement_order,
 													 balance_sheet_order,
 													 earnings_estimates_order)
-from Data_Retrieval.shared_functions import (convert_to_numeric_divide_by_one_million,
-											 return_mean_std_industry_valuations,
-											 format_rows, format_cell, convert_none_to_zero, handle_divide_by_zero,
-											 create_pie_chart, add_company_to_valuation_list)
+from Data_Retrieval.eodhd_apis import get_tickers_by_exchange
+from Data_Retrieval.mean_std_industry_valuation import return_mean_std_industry_valuations, \
+	add_company_to_valuation_list
+from Data_Retrieval.shared_functions import (convert_to_numeric_divide_by_one_million, format_rows, format_cell,
+											 convert_none_to_zero, handle_divide_by_zero, create_pie_chart,
+											 validate_ticker, convert_to_percentage)
+from main import validate_common_stock_tickers
 
 
-def retrieve_holder_information(json_data: dict):
+def retrieve_holder_information(json_data: dict) -> None:
 	print(json.dumps(json_data['Holders'], indent=4))
 	for key, value in json_data['Holders'].items():
 		print(f'{key}: {value}')
 
 
-def create_company_summary(json_data: dict):
+def create_company_summary(json_data: dict) -> pd.DataFrame:
 	columns = [
 		"Code", "Type", "Name", "Exchange", "PrimaryTicker",
 		"FiscalYearEnd", "IPODate", "InternationalDomestic", "GicSector", "GicGroup", "Description",
@@ -38,13 +42,14 @@ def create_company_summary(json_data: dict):
 
 
 def create_financial_statement_df(json_data: dict, statement: str, row_order: list,
-								  large_negative_rows_to_format: list) -> (pd.DataFrame, pd.DataFrame):
+								  large_negative_rows_to_format: list) -> (pd.DataFrame, pd.DataFrame, int):
 	summarised_flattened_data = []
+	number_of_years = 0
 	for i, (date, details) in enumerate(json_data['Financials'][statement]['yearly'].items()):
 		summarised_entry = {"date": details["date"]}
 		summarised_entry.update(details)
 		summarised_flattened_data.append(summarised_entry)
-
+		number_of_years += 1
 		# Use previous 20 years
 		if i == 19:
 			break
@@ -56,21 +61,26 @@ def create_financial_statement_df(json_data: dict, statement: str, row_order: li
 	numeric_columns = df.columns.difference(["date"])
 	df[numeric_columns] = df[numeric_columns].applymap(convert_to_numeric_divide_by_one_million)
 	df = df.reindex(row_order)
-	df = df.dropna(how='all')
+	# df = df.dropna(how='all')
 	df = df.fillna('')
 	df.rename(index=financials_row_mapping, inplace=True)
 	unformated_df = copy.copy(df)
 
 	format_rows(df, large_negative_rows_to_format, large_positive=False)
 	format_rows(df, list(set(df.index.to_list()) - set(large_negative_rows_to_format)), large_positive=True)
-	return df, unformated_df
+	return df, unformated_df, number_of_years
 
 
-def create_valuation_df(json_data: dict, valuation_df: pd.DataFrame, current_price: int) -> pd.DataFrame:
-	# Earnings
+def create_valuation_df(json_data: dict, valuation_df: pd.DataFrame, current_price: float) -> (pd.DataFrame, dict):
+	# Income Statement
 	revenues = valuation_df.loc['totalRevenue'].iloc[-1]
 	earnings = valuation_df.loc['netIncome'].iloc[-1]
-	shares_outstanding = valuation_df.loc['commonStockSharesOutstanding'].iloc[-1]
+	try:
+		shares_outstanding = valuation_df.loc['commonStockSharesOutstanding'].iloc[-1]
+		if shares_outstanding is None or np.isnan(shares_outstanding):
+			shares_outstanding = convert_to_numeric_divide_by_one_million(json_data['SharesStats']['SharesOutstanding'])
+	except KeyError:
+		shares_outstanding = None
 
 	trailing_eps = handle_divide_by_zero(earnings, shares_outstanding)
 	try:
@@ -96,6 +106,23 @@ def create_valuation_df(json_data: dict, valuation_df: pd.DataFrame, current_pri
 	forward_eps = json_data['Highlights']['EPSEstimateNextYear']
 	forward_price_earnings = handle_divide_by_zero(current_price, forward_eps)
 	price_sales = handle_divide_by_zero(market_cap, revenues)
+
+	# PEG Ratio is calculated by dividing forward EPS by the average of future period 12 month EPS estimates
+	current_date_str = str(datetime.now().date())
+	try:
+		expected_future_earnings = [float(value['earningsEstimateGrowth']) for period, value in
+									json_data['Earnings']['Trend'].items() if
+									period >= current_date_str and value[
+										'earningsEstimateGrowth'] is not None]
+		if expected_future_earnings and forward_price_earnings:
+			expected_average_future_earnings_growth = np.mean(expected_future_earnings)
+			price_earnings_growth_3yr = handle_divide_by_zero(
+				forward_price_earnings, (expected_average_future_earnings_growth * 100))
+		else:
+			price_earnings_growth_3yr = None
+
+	except (ValueError, KeyError):
+		price_earnings_growth_3yr = None
 
 	# Balance Sheet
 	current_assets = valuation_df.loc['totalCurrentAssets'].iloc[-1]
@@ -169,16 +196,17 @@ def create_valuation_df(json_data: dict, valuation_df: pd.DataFrame, current_pri
 	df_dict = {
 		'Price': current_price,
 		'MktCap': market_cap,
-		'Enterprise Value': enterprise_value,
+		'EV': enterprise_value,
 		'Revenue': revenues,
-		'Dividend Yield': str(round((dividend_yield * 100), 2)) + '%',
+		'Div Yield': dividend_yield,
 		'P/S': price_sales,
 		'EV/EBITDA': ev_ebitda,
-		'P/TB': price_tangible_book,
 		'P/B': price_book,
+		'P/TB': price_tangible_book,
 		'Debt/Equity': debt_to_equity,
 		'Trailing P/E': trailing_price_earnings,
 		'Forward P/E': forward_price_earnings,
+		'PEG 3yr': price_earnings_growth_3yr,
 		'P/CFO': price_operating_cash_flow,
 		'P/FCF': price_free_cash_flow,
 		'P/NCF': price_net_cash_flow,
@@ -186,48 +214,86 @@ def create_valuation_df(json_data: dict, valuation_df: pd.DataFrame, current_pri
 		'P/Cash': price_cash,
 		'P/NCash': price_net_cash,
 		'P/NN': price_net_net,
-		'Interest Coverage': interest_coverage,
-		'Debt Service Cov': debt_service_coverage,
+		'Interest Cov': interest_coverage,
+		'Service Cov': debt_service_coverage,
 		'Asset Cov': asset_coverage_ratio,
 	}
-	df_dict = {key: round(value, 2) if isinstance(value, (float, int)) else value for key, value in df_dict.items()}
+	df_dict = {key: (round(value, 2) if isinstance(value, (float, int)) else value) and (
+		value if isinstance(value, float) and not np.isnan(value) else '') for key, value in df_dict.items()}
 	result_df = pd.DataFrame.from_dict([df_dict])
+	try:
+		result_df['Div Yield'] = round(result_df['Div Yield'] * 100, 2)
+	except (KeyError, ValueError):
+		result_df['Div Yield'] = 0
 
 	# Copy updated information into valuation tracker to calculate industry mean and std
 	exchange = json_data['General']['Exchange']
 	code = json_data['General']['Code']
 
-	industry = json_data['General']['GicSector']
-	if not industry or industry == 'null':
-		industry = json_data['General']['Sector']
-	industry = industry.replace(' ', '_')
+	try:
+		industry = json_data['General']['GicSector']
+		if not industry or industry == 'null':
+			industry = json_data['General']['Sector']
+		industry = industry.replace(' ', '_')
+	except (KeyError, AttributeError):
+		industry = 'None'
 
 	update_dict = {'Code': code}
 	ordered_dict = {**update_dict, **df_dict}
 
 	add_company_to_valuation_list(ordered_dict, exchange, code, industry)
 	industry_average_valuation_dict = return_mean_std_industry_valuations(exchange, industry)
-	large_positive = ['Revenue', 'Dividend Yield']
+	large_positive = ['Revenue', 'Div Yield']
 
 	if industry_average_valuation_dict:
-		for col, mean in industry_average_valuation_dict['Mean'].items():
+		for col, median in industry_average_valuation_dict['Median'].items():
 			if col in large_positive:
-				format_cell(result_df, col, mean, industry_average_valuation_dict['StdDev'][col])
+				format_cell(result_df, col, median, industry_average_valuation_dict['MAD'][col], red_negative=True)
 			else:
-				format_cell(result_df, col, mean, industry_average_valuation_dict['StdDev'][col], False)
+				format_cell(result_df, col, median, industry_average_valuation_dict['MAD'][col], large_positive=False,
+							red_negative=True)
 
-	return result_df
+	return result_df, ordered_dict
 
 
-def create_highlights_df(hl_df: pd.DataFrame):
+def calculate_industry_average(api_token: str, exchange: str, industry: str) -> None:
+	tickers = get_tickers_by_exchange(api_token, exchange)
+	computed_industry = 'None'
+	for ticker in tickers:
+		company_code = ticker['Code']
+		company_code = validate_ticker(company_code)
+		json_data = eodhd.get_fundamental_data(api_token, exchange, company_code)
+		if not validate_common_stock_tickers(json_data, company_code):
+			continue
+
+		computed_industry = json_data['General']['GicSector']
+		if not computed_industry or computed_industry == 'null':
+			computed_industry = json_data['General']['Sector']
+
+		if industry != computed_industry:
+			continue
+
+		company_price = eodhd.get_stock_close_price(api_token, exchange, company_code)
+		if company_price is None:
+			continue
+		summarised_df = create_summarised_df(json_data)
+		if summarised_df.empty:
+			continue
+		_, ordered_dict = create_valuation_df(json_data, summarised_df, company_price)
+		add_company_to_valuation_list(ordered_dict, exchange, company_code, computed_industry)
+
+	return_mean_std_industry_valuations(exchange, computed_industry)
+
+
+def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
 	hl_df.fillna(sys.float_info.epsilon)
 	hl_df.replace(0, sys.float_info.epsilon, inplace=True)
 	hl_df.replace(0.0, sys.float_info.epsilon, inplace=True)
 	hl_df.loc['Revenue Increase'] = hl_df.loc['totalRevenue'].pct_change()
-	hl_df.loc['Revenue Increase'].iloc[0] = 0
+	# hl_df.loc['Revenue Increase'].iloc[0] = 0
 	# Calculate rolling percentage increase over the past 3 cells
-	hl_df.loc['Rolling Revenue Increase 3yr'] = hl_df.loc['totalRevenue'].rolling(window=3,
-																				  min_periods=1).mean().pct_change()
+	hl_df.loc['Revenue Increase 3yr'] = hl_df.loc['totalRevenue'].rolling(window=3,
+																		  min_periods=1).mean().pct_change()
 
 	hl_df.loc['Turonver Avg3'] = (hl_df.loc['netIncome'] / hl_df.loc['totalRevenue']).rolling(window=3,
 																							  min_periods=1).mean()
@@ -257,9 +323,9 @@ def create_highlights_df(hl_df: pd.DataFrame):
 	hl_df.loc['CFO /sh'] = hl_df.loc['totalCashFromOperatingActivities'] / hl_df.loc['commonStockSharesOutstanding']
 	hl_df.loc['FCF /sh'] = hl_df.loc['freeCashFlow'] / hl_df.loc['commonStockSharesOutstanding']
 	hl_df.loc['NCF /sh'] = hl_df.loc['changeInCash'] / hl_df.loc['commonStockSharesOutstanding']
-	hl_df.loc['RND % Revenue'] = hl_df.loc['researchDevelopment'] / hl_df.loc['totalRevenue']
-	hl_df.loc['Selling Marketing % Revenue'] = hl_df.loc['sellingAndMarketingExpenses'] / hl_df.loc['totalRevenue']
-	hl_df.loc['Selling General % Revenue'] = hl_df.loc['sellingGeneralAdministrative'] / hl_df.loc['totalRevenue']
+	hl_df.loc['RND Margin'] = hl_df.loc['researchDevelopment'] / hl_df.loc['totalRevenue']
+	hl_df.loc['Marketing Margin'] = hl_df.loc['sellingAndMarketingExpenses'] / hl_df.loc['totalRevenue']
+	hl_df.loc['General Margin'] = hl_df.loc['sellingGeneralAdministrative'] / hl_df.loc['totalRevenue']
 
 	book_value = hl_df.loc['totalAssets'] - hl_df.loc['totalLiab']
 	tangible_book = book_value - hl_df.loc['intangibleAssets']
@@ -274,9 +340,9 @@ def create_highlights_df(hl_df: pd.DataFrame):
 		'nonCurrentLiabilitiesTotal'] - highlight_values.loc['cashAndShortTermInvestments']
 
 	percent_columns = [
-		'Revenue Increase', 'Rolling Revenue Increase 3yr', 'Turonver Avg3', 'ROE Avg3', 'ROIC Avg3', 'CROIC Avg3',
-		'Gross Margin', 'EBITDA Margin', 'Net Inc Margin', 'CFO Margin', 'FCF Margin', 'NCF Margin', 'RND % Revenue',
-		'Selling Marketing % Revenue', 'Selling General % Revenue',
+		'Revenue Increase', 'Revenue Increase 3yr', 'Turonver Avg3', 'ROE Avg3', 'ROIC Avg3', 'CROIC Avg3',
+		'Gross Margin', 'EBITDA Margin', 'Net Inc Margin', 'CFO Margin', 'FCF Margin', 'NCF Margin', 'RND Margin',
+		'Marketing Margin', 'General Margin',
 	]
 
 	# Multiply selected rows by 100
@@ -284,11 +350,11 @@ def create_highlights_df(hl_df: pd.DataFrame):
 
 	# Reorder the DataFrame columns
 	new_order = [
-		'commonStockSharesOutstanding', 'totalRevenue', 'Revenue Increase', 'Rolling Revenue Increase 3yr',
+		'commonStockSharesOutstanding', 'totalRevenue', 'Revenue Increase', 'Revenue Increase 3yr',
 		'Turonver Avg3', 'ROE Avg3', 'ROIC Avg3', 'CROIC Avg3',
 		'Gross Margin', 'EBITDA Margin', 'Net Inc Margin', 'CFO Margin', 'FCF Margin', 'NCF Margin', 'netIncome',
-		'RND % Revenue', 'Selling Marketing % Revenue', 'Selling General % Revenue', 'Common EPS', 'EBITDA /sh',
-		'CFO /sh', 'FCF /sh', 'NCF /sh', 'Assets /sh', 'Book /sh', 'Tang Book /sh', 'Debt Overhang'
+		'Common EPS', 'EBITDA /sh', 'CFO /sh', 'FCF /sh', 'NCF /sh', 'RND Margin', 'Marketing Margin', 'General Margin',
+		'Assets /sh', 'Book /sh', 'Tang Book /sh', 'Debt Overhang'
 	]
 	hl_df = hl_df.reindex(new_order)
 
@@ -297,10 +363,10 @@ def create_highlights_df(hl_df: pd.DataFrame):
 	hl_df = hl_df.fillna('')
 
 	# List of rows to round and format as integers (greater than mean = green)
-	large_positive_rows_to_format = ['Revenues', 'Revenue Increase', 'Rolling Revenue Increase 3yr', 'Gross Margin',
+	large_positive_rows_to_format = ['Revenues', 'Revenue Increase', 'Revenue Increase 3yr', 'Gross Margin',
 									 'Turonver Avg3', 'ROE Avg3', 'ROIC Avg3', 'CROIC Avg3',
 									 'EBITDA Margin', 'Net Inc Margin', 'CFO Margin', 'FCF Margin', 'NCF Margin',
-									 'RND % Revenue', 'Common EPS', 'EBITDA /sh', 'CFO /sh', 'FCF /sh', 'NCF /sh',
+									 'RND Margin', 'Common EPS', 'EBITDA /sh', 'CFO /sh', 'FCF /sh', 'NCF /sh',
 									 'Net Income', 'Assets /sh', 'Book /sh', 'Tang Book /sh']
 
 	hl_df.loc[large_positive_rows_to_format] = hl_df.loc[large_positive_rows_to_format]
@@ -311,8 +377,8 @@ def create_highlights_df(hl_df: pd.DataFrame):
 	format_rows(hl_df, remaining_columns, large_positive=True)
 
 	# List of rows to round and format as integers (greater than mean = green)
-	large_negative_rows_to_format = ['Common Stock Shares Outstanding', 'Selling Marketing % Revenue',
-									 'Selling General % Revenue', 'Debt Overhang']
+	large_negative_rows_to_format = ['Shares Outstanding', 'Marketing Margin',
+									 'General Margin', 'Debt Overhang']
 	hl_df.loc[large_negative_rows_to_format] = hl_df.loc[large_negative_rows_to_format]
 
 	percent_columns_to_format = list(set(percent_columns) & set(large_negative_rows_to_format))
@@ -360,10 +426,11 @@ def create_balance_sheet_pie_charts(balance_sheet_df: pd.DataFrame) -> str:
 	return html_content
 
 
-def create_earnings_estimates_df(json_data: dict):
+def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
 	current_date_str = str(datetime.now().date())
 	earnings_dict = [value for period, value in json_data['Earnings']['Trend'].items() if period >= current_date_str]
-	earnings_df = pd.DataFrame(earnings_dict)
+	earnings_df = pd.DataFrame.from_records(earnings_dict)
+
 	if not earnings_df.empty:
 		earnings_df.set_index("date", inplace=True)
 		earnings_df = earnings_df.T.iloc[:, ::-1]
@@ -371,10 +438,26 @@ def create_earnings_estimates_df(json_data: dict):
 		earnings_df = earnings_df.reindex(earnings_estimates_order)
 		earnings_df.rename(index=earnings_estimates_row_mappings, inplace=True)
 
+	try:
+		earnings_df.loc['Revenue Est Avg'] = earnings_df.loc['Revenue Est Avg'].apply(
+			convert_to_numeric_divide_by_one_million)
+	except KeyError:
+		pass
+	try:
+		earnings_df.loc['EPS Est Growth'] = earnings_df.loc['EPS Est Growth'].apply(convert_to_percentage)
+		earnings_df.loc['Revenue Est Growth'] = earnings_df.loc['Revenue Est Growth'].apply(convert_to_percentage)
+	except KeyError:
+		pass
+
+	percent_columns_to_format = ['EPS Est Growth', 'Revenue Est Growth']
+	columns_to_format = ['EPS Est Avg', 'EPS Est Num of Analysts',
+						 'Revenue Est Avg', 'Revenue Est Number of Analysts']
+	format_rows(earnings_df, percent_columns_to_format, add_percentage=True)
+	format_rows(earnings_df, columns_to_format)
 	return earnings_df
 
 
-def print_individual_finances(json_data: dict, current_price):
+def create_summarised_df(json_data: dict) -> (pd.DataFrame, None):
 	summarised_flattened_data = []
 
 	for i, (date, details) in enumerate(json_data['Financials']['Income_Statement']['yearly'].items()):
@@ -392,26 +475,36 @@ def print_individual_finances(json_data: dict, current_price):
 		if i == 19:
 			break
 
-	hl_df = pd.DataFrame(summarised_flattened_data)
+	summarised_df = pd.DataFrame(summarised_flattened_data)
 
 	# Set the "date" column as the index
 	try:
-		hl_df.set_index("date", inplace=True)
+		summarised_df.set_index("date", inplace=True)
 	except KeyError:
 		print(f"Invalid data format for ticker")
-		return
+		return pd.DataFrame()
 
 	# Transpose and invert the DataFrame
-	hl_df = hl_df.T.iloc[:, ::-1]
+	summarised_df = summarised_df.T.iloc[:, ::-1]
 
 	# Convert strings to numbers and divide by 1 million
-	numeric_columns = hl_df.columns.difference(["date"])
-	hl_df[numeric_columns] = hl_df[numeric_columns].applymap(convert_to_numeric_divide_by_one_million)
+	numeric_columns = summarised_df.columns.difference(["date"])
+	summarised_df[numeric_columns] = summarised_df[numeric_columns].applymap(convert_to_numeric_divide_by_one_million)
 
-	# Create valuation df based off highlights df
-	valuation_df = create_valuation_df(json_data, hl_df, current_price)
+	return summarised_df
 
-	hl_df = create_highlights_df(hl_df)
+
+def print_individual_finances(json_data: dict, current_price: float) -> None:
+	summarised_df = create_summarised_df(json_data)
+
+	if summarised_df.empty:
+		return
+
+	# Create valuation df based off summarised_df
+	valuation_df, _ = create_valuation_df(json_data, summarised_df, current_price)
+
+	# Create highlights df based off summarised_df
+	hl_df = create_highlights_df(summarised_df)
 
 	# Access the DataFrames for each financial statement
 	financial_statements = {
@@ -433,8 +526,10 @@ def print_individual_finances(json_data: dict, current_price):
 
 	financial_statement_dataframes = []
 	html_pie_charts = ''
+	number_of_years = 0
 	for i, (key, order) in enumerate(financial_statements.items()):
-		df, unformatted_df = create_financial_statement_df(json_data, key, order, large_negative_rows_to_format[i])
+		df, unformatted_df, number_of_years = create_financial_statement_df(json_data, key, order,
+																			large_negative_rows_to_format[i])
 		financial_statement_dataframes.append(df)
 
 		if key == "Balance_Sheet":
@@ -445,27 +540,40 @@ def print_individual_finances(json_data: dict, current_price):
 
 	earnings_estimates_df = create_earnings_estimates_df(json_data)
 
+	align = ''
+	if number_of_years <= 10:
+		align = ' style="text-align: center; "'
+	company_name = json_data['General']['Name']
+
 	# Combine all dataframes into one
-	combined_html = summary_df.to_html(col_space=summary_col_widths, index=False, na_rep='N/A') + "<br>" + \
-					"<h2>Company Valuation</h2>" + valuation_df.to_html(index=False, escape=False,
-																		na_rep='N/A') + "<br>" + \
-					"<h2>Company Summary</h2>" + hl_df.to_html(classes='highlight-table', escape=False, na_rep='N/A') + \
-					"<h2>Future Earnings Estimates</h2>"  # + earnings_estimates_df.to_html(index=False, escape=False,
-	# na_rep='N/A')
+	combined_html = (summary_df.to_html(col_space=summary_col_widths, index=False, na_rep='N/A') + "<br>" +
+					 f'<h2>{company_name} Valuation</h2>' + valuation_df.to_html(classes='valuation-table', index=False,
+																				 escape=False, na_rep='N/A') + "<br>" +
+					 f'<h2{align}>{company_name} Summary</h2>' + hl_df.to_html(classes='highlight-table time-series',
+																			   escape=False, na_rep='N/A'))
+
+	if not earnings_estimates_df.empty:
+		combined_html += f'<h2{align}>Future Earnings Estimates</h2>' + earnings_estimates_df.to_html(
+			classes='earnings-table', escape=False)
 
 	for df, title in zip(financial_statement_dataframes, financial_statements.keys()):
-		classes = title + '-table'
+		classes = title + '-table time-series'
 		if title == "Balance_Sheet":
-			combined_html += f"<br><h2>{title.replace('_', ' ')}</h2>" + df.to_html(classes=classes, escape=False,
-																					na_rep='N/A') + html_pie_charts
+			combined_html += f"<br><h2{align}>{title.replace('_', ' ')}</h2>" + df.to_html(classes=classes,
+																						   escape=False,
+																						   na_rep='N/A') + html_pie_charts
 		else:
-			combined_html += f"<br><h2>{title.replace('_', ' ')}</h2>" + df.to_html(classes=classes, escape=False,
-																					na_rep='N/A')
+			combined_html += f"<br><h2{align}>{title.replace('_', ' ')}</h2>" + df.to_html(classes=classes,
+																						   escape=False,
+																						   na_rep='N/A')
 
 	# Display the DataFrame in a Bokeh Div widget
-	div_widget = Div(text=INDIVIDUAL_COMPANY_TABLE_STYLE + combined_html, width=1500, height=900)
+	div_widget = Div(text=individual_company_table_css(number_of_years) + combined_html, width=1500, height=900)
 
 	# Save the layout containing the Div widget
 	stock_code = summary_df.iloc[0, 0]
-	output_file("Data_Output/Individual/AU/" + str(stock_code) + ".html")
+	exchange = summary_df.iloc[0, 3]
+	file_location = f'Data_Output/Individual/{str(exchange)}/{str(stock_code)}.html'
+	output_file(file_location)
 	save(column(div_widget))
+	print(f'Company formatted html has been saved to {file_location}')

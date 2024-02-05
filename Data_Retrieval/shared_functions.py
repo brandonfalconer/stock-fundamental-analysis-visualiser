@@ -1,6 +1,5 @@
 import base64
 import os
-import sys
 from io import BytesIO
 
 import requests
@@ -15,7 +14,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-ALPHA_SCALE_FACTOR = 4
+ALPHA_SCALE_FACTOR = 3
 STD_SCALE_FACTOR = 0.75
 
 
@@ -99,25 +98,43 @@ def convert_to_numeric_divide_by_one_million(value):
 		return value
 
 
+def convert_to_percentage(value):
+	try:
+		if value != '' and pd.notna(value):
+			return float(value) * 100
+		return value
+	except (ValueError, TypeError):
+		return value
+
+
+def calculate_median_absolute_deviation(data):
+	median = np.median(data)
+	mad = np.median(np.abs(data - median))
+	return mad
+
+
 def conditionally_format(value: float, average: [np.ndarray, float], std_dev: [np.ndarray, float], large_positive=True,
-						 add_percentage=False, draw_underline=False) -> str:
+						 add_percentage=False, draw_underline=False, red_negative=False) -> str:
 	try:
 		z_score = (float(value) - average) / std_dev
 		alpha = min(1, max(0, abs(z_score) / 2))
 		# print(f'value: {value}, mean: {average}, std: {std_dev}, z_score: {z_score}, alpha: {alpha}')
 
-		if large_positive:
-			background_color = (
-				f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
-				else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
-				else "rgba(255, 255, 255, 0)"
-			)
+		if red_negative and value < 0:
+			background_color = "rgba(255, 0, 0, 0.5)"
 		else:
-			background_color = (
-				f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
-				else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
-				else "rgba(255, 255, 255, 0)"
-			)
+			if large_positive:
+				background_color = (
+					f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
+					else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
+					else "rgba(255, 255, 255, 0)"
+				)
+			else:
+				background_color = (
+					f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
+					else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
+					else "rgba(255, 255, 255, 0)"
+				)
 
 	except (TypeError, ValueError):
 		background_color = "rgba(255, 255, 255, 0.5)"
@@ -129,14 +146,13 @@ def conditionally_format(value: float, average: [np.ndarray, float], std_dev: [n
 			value = round(float(value))
 		else:
 			value = round(float(value), 2)
-	except (TypeError, ValueError):
-		pass
-	except OverflowError:
-		pass
-	return f'<div style="background: {background_color}; color: black; font-weight: bold; {draw_underline}">{value}{string_percent}</div>'
+	except (TypeError, ValueError, OverflowError):
+		return f'<div style="background: {background_color}; color: black; font-weight: bold; {draw_underline}"></div>'
+
+	return f'<div style="background: {background_color}; color: black; font-weight: bold; {draw_underline}">{value:,}{string_percent}</div>'
 
 
-def format_rows(df: pd.DataFrame, rows_to_format, large_positive: bool = True, add_percentage: bool = False) -> None:
+def format_rows(df: pd.DataFrame, rows_to_format, large_positive: bool = True, add_percentage=False) -> None:
 	if not rows_to_format:
 		rows_to_format = df.index.to_list()
 
@@ -160,93 +176,16 @@ def format_rows(df: pd.DataFrame, rows_to_format, large_positive: bool = True, a
 		average = np.mean(values)
 		std_dev = np.std(values)
 
-		df.loc[row] = df.loc[row].apply(lambda value: conditionally_format(value, average, std_dev, large_positive,
-																		   add_percentage))
+		df.loc[row] = df.loc[row].apply(
+			lambda value: conditionally_format(value, average, std_dev, large_positive=large_positive,
+											   add_percentage=add_percentage))
 
 
 def format_cell(df: pd.DataFrame, column_name, average: float, std_dev: float, large_positive: bool = True,
-				add_percentage: bool = False) -> None:
-	df[column_name] = df[column_name].apply(lambda value: conditionally_format(value, average, std_dev, large_positive,
-																			   add_percentage))
-
-
-def add_company_to_valuation_list(ordered_dict: dict, exchange: str, company_code: str, industry: str) -> None:
-	file_path = f"Data/Fundamentals/Valuation/{exchange}/{industry}.json"
-
-	try:
-		print(ordered_dict)
-		market_cap = float(ordered_dict['MktCap'])
-		# Don't add if the market cap is under 50M
-		if market_cap < 50:
-			print(f'Market Cap is too small {market_cap}M, not adding to valuation')
-			return
-	except ValueError:
-		return
-
-	try:
-		with open(file_path, 'r') as json_file:
-			json_data = json.load(json_file)
-			existing_entry = next((entry for entry in json_data['Companies'] if entry['Code'] == company_code), None)
-			if existing_entry:
-				# Update the existing entry
-				existing_entry.update(ordered_dict)
-			else:
-				# Append the new entry
-				json_data['Companies'].append(ordered_dict)
-
-		with open(file_path, 'w') as json_file:
-			json.dump(json_data, json_file, indent=2)
-
-	except FileNotFoundError:
-		print(f"File not found: {file_path}, creating a new file.")
-		with open(file_path, 'w') as json_file:
-			json.dump({'Companies': [ordered_dict]}, json_file, indent=2)
-
-
-def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
-	file_path = f"Data/Fundamentals/Valuation/{exchange}/{industry}.json"
-	try:
-		with open(file_path, "r") as json_file:
-			# Parse the JSON data
-			json_data = json.load(json_file)
-
-			# Initialize dictionaries to accumulate values
-			numeric_data_sum = {}
-			numeric_data_count = {}
-
-			# Iterate over each company and accumulate numeric values
-			for company in json_data['Companies']:
-				for key, value in company.items():
-					if key == 'Dividend Yield':
-						numeric_value = float(value.rstrip('%'))
-						try:
-							company['Dividend Yield'] = numeric_value
-							numeric_data_sum[key] = numeric_data_sum.get(key, 0) + numeric_value
-							numeric_data_count[key] = numeric_data_count.get(key, 0) + 1
-						except ValueError:
-							continue
-					if isinstance(value, float) and not np.isnan(value):
-						# Update sum and count for each numeric key
-						numeric_data_sum[key] = numeric_data_sum.get(key, 0) + value
-						numeric_data_count[key] = numeric_data_count.get(key, 0) + 1
-
-			# Calculate mean and standard deviation based on accumulated values
-			mean_values = {key: numeric_data_sum[key] / numeric_data_count[key] for key in numeric_data_sum}
-			std_dev_values = {
-				key: np.std([company[key] for company in json_data['Companies']
-							 if company[key] is not None and not np.isnan(company[key])]) for key in numeric_data_sum}
-
-			# Save mean and standard deviation into another dictionary
-			result_dict = {'Mean': mean_values, 'StdDev': std_dev_values}
-
-	except FileNotFoundError:
-		return {}
-
-	result_file_path = f"Data/Fundamentals/Valuation/{exchange}/{industry}_Average.json"
-	with open(result_file_path, 'w') as result_file:
-		json.dump(result_dict, result_file)
-
-	return result_dict
+				add_percentage: bool = False, red_negative=False) -> None:
+	df[column_name] = df[column_name].apply(
+		lambda value: conditionally_format(value, average, std_dev, large_positive=large_positive,
+										   add_percentage=add_percentage, red_negative=red_negative))
 
 
 def create_table_column(df: pd.DataFrame):
@@ -277,7 +216,7 @@ def create_pie_chart(df: pd.DataFrame, components: list[str]) -> (str, None):
 
 	fig, ax = plt.subplots()
 	autopct = lambda pct: '{:1.1f}%'.format(pct) if pct > 2.5 else ''
-	colors = ['#c4e6a5', '#8099ff', '#DD7596', '#8EB897', '#f5eaab', '#f79797', '#d499e8']
+	colors = ['#c4e6a5', '#8099ff', '#DD7596', '#8EB897', '#f5eaab', '#f79797', '#d499e8', '#96e9fa']
 	ax.pie(component_values_as_floats, labels=components, autopct=autopct, startangle=90, colors=colors)
 	ax.axis('equal')
 	img_buffer = BytesIO()
@@ -289,14 +228,29 @@ def create_pie_chart(df: pd.DataFrame, components: list[str]) -> (str, None):
 	return img_base64
 
 
-def validate_ticker(ticker_code: str) -> (str, None):
-	# Microsoft MS-DOS had reserved these names for these system device drivers.
-	# PRN : System list device, usually a parallel port
-	if ticker_code == 'PRN':
-		ticker_code = 'PRN_'
+def validate_ticker(company: dict, exchange: str) -> (str, None):
+	code = company['Code']
+	if company['Type'] != "Common Stock":
+		print(f'{code} is not a common stock')
+		return False
 
-	# eodhd has no data for LGI
-	if ticker_code == 'LGI':
+	if company['Exchange'] != exchange:
+		return False
+
+	# Microsoft MS-DOS had reserved these names for these system device drivers.
+	if code == 'PRN':
+		code = 'PRN_'
+	if code == 'CON':
+		code = 'CON_'
+	if code == 'AUX':
+		code = 'AUX_'
+	if code == 'NUL':
+		code = 'NUL_'
+	if code == 'TRAK':
+		code = 'TRAK_'
+
+	# eodhd has no data for LGI, GLACR
+	if code == 'LGI' or code == 'GLACR':
 		return None
 
-	return ticker_code
+	return code

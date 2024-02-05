@@ -1,4 +1,3 @@
-
 financials_row_mapping = {
 	# INCOME STATEMENT
 	'date': 'Date',
@@ -19,7 +18,7 @@ financials_row_mapping = {
 	'incomeTaxExpense': 'Income Tax Expense',
 	'netIncome': 'Net Income',
 	'minorityInterest': 'Minority Interest',
-	'netIncomeApplicableToCommonShares': 'Net Income Applicable to Common Shares',
+	'netIncomeApplicableToCommonShares': 'Net Inc App to Common Shares',
 	'effectOfAccountingCharges': 'Effect of Accounting Charges',
 	'reconciledDepreciation': 'Reconciled Depreciation',
 	'nonOperatingIncomeNetOther': 'Non-Operating Income (Net Other)',
@@ -31,8 +30,8 @@ financials_row_mapping = {
 	'otherItems': 'Other Items',
 	'totalOtherIncomeExpenseNet': 'Total Other Income/Expense (Net)',
 	'discontinuedOperations': 'Discontinued Operations',
-	'netIncomeFromContinuingOps': 'Net Income from Continuing Operations',
-	'preferredStockAndOtherAdjustments': 'Preferred Stock and Other Adjustments',
+	'netIncomeFromContinuingOps': 'Net Inc from Cont Operations',
+	'preferredStockAndOtherAdjustments': 'Preferred Stock Adjustments',
 
 	# CASH FLOW STATEMENT
 	'changeToNetincome': 'Change to Net Income',
@@ -44,21 +43,21 @@ financials_row_mapping = {
 	'totalCashFromOperatingActivities': 'Total Cash from Operating Activities',
 	'capitalExpenditures': 'Capital Expenditures',
 	'depreciation': 'Depreciation',
-	'otherCashflowsFromInvestingActivities': 'Other Cash Flows from Investing Activities',
-	'totalCashflowsFromInvestingActivities': 'Total Cash Flows from Investing Activities',
+	'otherCashflowsFromInvestingActivities': 'Other Investing Cash Flows',
+	'totalCashflowsFromInvestingActivities': 'Total Investing Cash Flows',
 	'freeCashFlow': 'Free Cash Flow',
 	'issuanceOfCapitalStock': 'Issuance of Capital Stock',
 	'salePurchaseOfStock': 'Sale/Purchase of Stock',
 	'netBorrowings': 'Net Borrowings',
 	'dividendsPaid': 'Dividends Paid',
 	'exchangeRateChanges': 'Exchange Rate Changes',
-	'cashAndCashEquivalentsChanges': 'Cash and Cash Equivalents Changes',
+	'cashAndCashEquivalentsChanges': 'Cash and Equivalents Change',
 	'changeInWorkingCapital': 'Change in Working Capital',
 	'stockBasedCompensation': 'Stock-Based Compensation',
 	'otherNonCashItems': 'Other Non-Cash Items',
 	'investments': 'Investments',
 	'changeToLiabilities': 'Change to Liabilities',
-	'otherCashflowsFromFinancingActivities': 'Other Cash Flows from Financing Activities',
+	'otherCashflowsFromFinancingActivities': 'Other Financing Cash Flows',
 	'totalCashFromFinancingActivities': 'Total Cash from Financing Activities',
 	'beginPeriodCashFlow': 'Begin Period Cash Flow',
 	'endPeriodCashFlow': 'End Period Cash Flow',
@@ -107,13 +106,13 @@ financials_row_mapping = {
 	'additionalPaidInCapital': 'Additional Paid-In Capital',
 	'retainedEarnings': 'Retained Earnings',
 	'retainedEarningsTotalEquity': 'Retained Earnings Total Equity',
-	'accumulatedOtherComprehensiveIncome': 'Accumulated Other Comprehensive Income',
+	'accumulatedOtherComprehensiveIncome': 'Acc Other Comprehensive Income',
 	'otherStockholderEquity': 'Other Stockholder Equity',
 	'totalPermanentEquity': 'Total Permanent Equity',
 	'commonStockTotalEquity': 'Common Stock Total Equity',
 	'preferredStockTotalEquity': 'Preferred Stock Total Equity',
 	'totalStockholderEquity': 'Total Stockholder Equity',
-	'commonStockSharesOutstanding': 'Common Stock Shares Outstanding',
+	'commonStockSharesOutstanding': 'Shares Outstanding',
 	'negativeGoodwill': 'Negative Goodwill',
 	'warrants': 'Warrants',
 	'preferredStockRedeemable': 'Preferred Stock Redeemable',
@@ -130,29 +129,29 @@ financials_row_mapping = {
 }
 
 earnings_estimates_row_mappings = {
-	"date": "Date",
-	"period": "Period",
-	"growth": "Growth",
-	"earningsEstimateAvg": "Earnings Est Avg",
-	"earningsEstimateLow": "Earnings Est Low",
-	"earningsEstimateHigh": "Earnings Est High",
-	"earningsEstimateYearAgoEps": "Earnings Est Year Ago EPS",
-	"earningsEstimateNumberOfAnalysts": "Earnings Est Num of Analysts",
-	"earningsEstimateGrowth": "Earnings Est Growth",
-	"revenueEstimateAvg": "Revenue Est Avg",
-	"revenueEstimateLow": "Revenue Est Low",
-	"revenueEstimateHigh": "Revenue Est High",
-	"revenueEstimateYearAgoEps": "Revenue Est Year Ago EPS",
-	"revenueEstimateNumberOfAnalysts": "Revenue Est Number of Analysts",
-	"revenueEstimateGrowth": "Revenue Est Growth",
-	"epsTrendCurrent": "EPS Trend Current",
-	"epsTrend7daysAgo": "EPS Trend 7 Days Ago",
-	"epsTrend30daysAgo": "EPS Trend 30 Days Ago",
-	"epsTrend60daysAgo": "EPS Trend 60 Days Ago",
-	"epsTrend90daysAgo": "EPS Trend 90 Days Ago",
-	"epsRevisionsUpLast7days": "EPS Rev Up Last 7 Days",
-	"epsRevisionsUpLast30days": "EPS Rev Up Last 30 Days",
-	"epsRevisionsDownLast7days": "EPS Rev Down Last 7 Days"
+	'date': 'Date',
+	'period': 'Period',
+	'growth': 'Growth',
+	'earningsEstimateAvg': 'EPS Est Avg',
+	'earningsEstimateLow': 'EPS Est Low',
+	'earningsEstimateHigh': 'EPS Est High',
+	'earningsEstimateYearAgoEps': 'EPS Est Year Ago EPS',
+	'earningsEstimateNumberOfAnalysts': 'EPS Est Num of Analysts',
+	'earningsEstimateGrowth': 'EPS Est Growth',
+	'revenueEstimateAvg': 'Revenue Est Avg',
+	'revenueEstimateLow': 'Revenue Est Low',
+	'revenueEstimateHigh': 'Revenue Est High',
+	'revenueEstimateYearAgoEps': 'Revenue Est Year Ago EPS',
+	'revenueEstimateNumberOfAnalysts': 'Revenue Est Number of Analysts',
+	'revenueEstimateGrowth': 'Revenue Est Growth',
+	'epsTrendCurrent': 'EPS Trend Current',
+	'epsTrend7daysAgo': 'EPS Trend 7 Days Ago',
+	'epsTrend30daysAgo': 'EPS Trend 30 Days Ago',
+	'epsTrend60daysAgo': 'EPS Trend 60 Days Ago',
+	'epsTrend90daysAgo': 'EPS Trend 90 Days Ago',
+	'epsRevisionsUpLast7days': 'EPS Rev Up Last 7 Days',
+	'epsRevisionsUpLast30days': 'EPS Rev Up Last 30 Days',
+	'epsRevisionsDownLast7days': 'EPS Rev Down Last 7 Days',
 }
 
 income_statement_order = [
@@ -265,16 +264,10 @@ balance_sheet_order = [
 ]
 
 earnings_estimates_order = [
-	"earningsEstimateAvg"
-	"earningsEstimateLow"
-	"earningsEstimateHigh"
-	"earningsEstimateYearAgoEps"
-	"earningsEstimateNumberOfAnalysts"
-	"earningsEstimateGrowth"
-	"revenueEstimateAvg"
-	"revenueEstimateLow"
-	"revenueEstimateHigh"
-	"revenueEstimateYearAgoEps"
-	"revenueEstimateNumberOfAnalysts"
-	"revenueEstimateGrowth"
+	'earningsEstimateAvg',
+	'earningsEstimateGrowth',
+	'earningsEstimateNumberOfAnalysts',
+	'revenueEstimateAvg',
+	'revenueEstimateGrowth',
+	'revenueEstimateNumberOfAnalysts',
 ]
