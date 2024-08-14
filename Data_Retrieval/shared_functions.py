@@ -1,15 +1,14 @@
 import base64
+import json
 import os
 from io import BytesIO
 
-import requests
-import json
-
+import matplotlib
 import numpy as np
 import pandas as pd
+import requests
 from bokeh.io import output_file, show
 from bokeh.models import TableColumn, ColumnDataSource, DataTable
-import matplotlib
 
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
@@ -45,6 +44,7 @@ def return_json_data(relative_path: str):
 
 
 def save_response_to_file(url: str, file_path: str):
+	print(file_path)
 	if os.path.exists(file_path):
 		return return_json_data(file_path)
 
@@ -91,6 +91,7 @@ def convert_none_to_zero(value):
 
 def convert_to_numeric_divide_by_one_million(value):
 	try:
+		# print(value)
 		if value != '' and pd.notna(value):
 			return float(value) / 1000000
 		return value
@@ -113,28 +114,32 @@ def calculate_median_absolute_deviation(data):
 	return mad
 
 
-def conditionally_format(value: float, average: [np.ndarray, float], std_dev: [np.ndarray, float], large_positive=True,
-						 add_percentage=False, draw_underline=False, red_negative=False) -> str:
+def conditionally_format(value: float, average: [np.ndarray, float, None], std_dev: [np.ndarray, float, None],
+						 large_positive=True, add_percentage=False, draw_underline=False, red_negative=False,
+						 dont_round=False) -> str:
 	try:
-		z_score = (float(value) - average) / std_dev
-		alpha = min(1, max(0, abs(z_score) / 2))
 		# print(f'value: {value}, mean: {average}, std: {std_dev}, z_score: {z_score}, alpha: {alpha}')
 
 		if red_negative and value < 0:
 			background_color = "rgba(255, 0, 0, 0.5)"
 		else:
-			if large_positive:
-				background_color = (
-					f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
-					else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
-					else "rgba(255, 255, 255, 0)"
-				)
+			if average is not None and std_dev is not None:
+				z_score = (float(value) - average) / std_dev
+				alpha = min(1, max(0, abs(z_score) / 2))
+				if large_positive:
+					background_color = (
+						f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
+						else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
+						else "rgba(255, 255, 255, 0)"
+					)
+				else:
+					background_color = (
+						f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
+						else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
+						else "rgba(255, 255, 255, 0)"
+					)
 			else:
-				background_color = (
-					f"rgba(0, 230, 0, {alpha / ALPHA_SCALE_FACTOR})" if value < average - STD_SCALE_FACTOR * std_dev
-					else f"rgba(230, 0, 0, {alpha / ALPHA_SCALE_FACTOR})" if value > average + STD_SCALE_FACTOR * std_dev
-					else "rgba(255, 255, 255, 0)"
-				)
+				background_color = "rgba(0, 0, 0, 00)"
 
 	except (TypeError, ValueError):
 		background_color = "rgba(255, 255, 255, 0.5)"
@@ -142,7 +147,7 @@ def conditionally_format(value: float, average: [np.ndarray, float], std_dev: [n
 	string_percent = '%' if add_percentage else ''
 	draw_underline = 'border-bottom: 1px solid black;' if draw_underline else ''
 	try:
-		if add_percentage:
+		if add_percentage and not dont_round:
 			value = round(float(value))
 		else:
 			value = round(float(value), 2)
@@ -181,11 +186,13 @@ def format_rows(df: pd.DataFrame, rows_to_format, large_positive: bool = True, a
 											   add_percentage=add_percentage))
 
 
-def format_cell(df: pd.DataFrame, column_name, average: float, std_dev: float, large_positive: bool = True,
-				add_percentage: bool = False, red_negative=False) -> None:
+def format_cell(df: pd.DataFrame, column_name, average: (float, None), std_dev: (float, None),
+				large_positive: bool = True, add_percentage: bool = False, red_negative=False,
+				dont_round=False) -> None:
 	df[column_name] = df[column_name].apply(
 		lambda value: conditionally_format(value, average, std_dev, large_positive=large_positive,
-										   add_percentage=add_percentage, red_negative=red_negative))
+										   add_percentage=add_percentage, red_negative=red_negative,
+										   dont_round=dont_round))
 
 
 def create_table_column(df: pd.DataFrame):
@@ -236,18 +243,6 @@ def validate_ticker(company: dict, exchange: str) -> (str, None):
 
 	if company['Exchange'] != exchange:
 		return False
-
-	# Microsoft MS-DOS had reserved these names for these system device drivers.
-	if code == 'PRN':
-		code = 'PRN_'
-	if code == 'CON':
-		code = 'CON_'
-	if code == 'AUX':
-		code = 'AUX_'
-	if code == 'NUL':
-		code = 'NUL_'
-	if code == 'TRAK':
-		code = 'TRAK_'
 
 	# eodhd has no data for LGI, GLACR
 	if code == 'LGI' or code == 'GLACR':

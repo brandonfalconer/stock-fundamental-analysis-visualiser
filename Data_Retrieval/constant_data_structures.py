@@ -128,6 +128,18 @@ financials_row_mapping = {
 	'netInvestedCapital': 'Net Invested Capital',
 }
 
+share_stats_row_mappings = {
+	'SharesOutstanding': 'Shares Outstanding',
+	'SharesFloat': 'Shares Float',
+	'PercentInsiders': 'Percent Insiders',
+	'PercentInstitutions': 'Percent Institutions',
+	'SharesShort': 'Shares Short',
+	'SharesShortPriorMonth': 'Shares Short Prior Mnth',
+	'ShortRatio': 'Short Ratio',
+	'ShortPercentOutstanding': 'Short % Outstanding',
+	'ShortPercentFloat': 'Short % Float'
+}
+
 earnings_estimates_row_mappings = {
 	'date': 'Date',
 	'period': 'Period',
@@ -189,11 +201,11 @@ income_statement_order = [
 ]
 
 cash_flow_statement_order = [
+	'netIncome',
 	'changeToNetincome',
 	'changeToOperatingActivities',
 	'changeToInventory',
 	'changeToAccountReceivables',
-	'changeReceivables',
 	'cashFlowsOtherOperating',
 	'totalCashFromOperatingActivities',
 	'capitalExpenditures',
@@ -263,11 +275,19 @@ balance_sheet_order = [
 	'accumulatedAmortization'
 ]
 
+share_stats_order = [
+	'SharesOutstanding',
+	'SharesFloat',
+	'PercentInsiders',
+	'PercentInstitutions',
+	'ShortPercentOutstanding',
+]
+
 earnings_estimates_order = [
 	'earningsEstimateAvg',
 	'earningsEstimateGrowth',
 	'earningsEstimateNumberOfAnalysts',
 	'revenueEstimateAvg',
 	'revenueEstimateGrowth',
-	'revenueEstimateNumberOfAnalysts',
+	'revenueEstimateNumberOfAnalysts'
 ]

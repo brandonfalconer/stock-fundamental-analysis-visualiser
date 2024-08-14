@@ -1,9 +1,7 @@
 import json
-import math
 import os
 
 import numpy as np
-import pandas as pd
 
 from Data_Retrieval.shared_functions import calculate_median_absolute_deviation
 
@@ -47,6 +45,10 @@ def add_company_to_valuation_list(ordered_dict: dict, exchange: str, company_cod
 
 	except FileNotFoundError:
 		print(f"File not found: {file_path}, creating a new file.")
+		directory = f"Data/Fundamentals/Valuation/{exchange}"
+		if not os.path.exists(directory):
+			os.makedirs(directory)
+
 		with open(file_path, 'w') as json_file:
 			values_to_update = update_existing_df(keys_cant_be_negative, ordered_dict)
 
@@ -73,7 +75,7 @@ def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
 
 			# Initialize dictionaries to accumulate values
 			keys = ['Price', 'MktCap', 'EV', 'Revenue', 'Div Yield', 'P/S', 'EV/EBITDA', 'P/B', 'P/TB', 'Debt/Equity',
-					'Trailing P/E', 'Forward P/E', 'PEG 3yr', 'P/CFO', 'P/FCF', 'P/NCF', 'P/Div', 'P/Cash', 'P/NCash',
+					'Trailing P/E', 'Forward P/E', 'PEG 3yr', 'P/CFO', 'P/FCF', 'P/Div', 'P/Cash', 'P/NCash',
 					'P/NN', 'Interest Cov', 'Service Cov', 'Asset Cov']
 			numeric_data = {key: [] for key in keys}
 

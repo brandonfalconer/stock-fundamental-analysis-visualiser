@@ -57,7 +57,7 @@ def individual_company_table_css(number_years: int) -> str:
 				{align};
 			}}
 			
-			.earnings-table {{
+			.short-table {{
 		 		width: 50%;
 				margin: 0 auto;
 			}}
@@ -92,6 +92,8 @@ def individual_company_table_css(number_years: int) -> str:
 			.Balance_Sheet-table tr:nth-child(7) th,
 			.Balance_Sheet-table tr:nth-child(15) td,
 			.Balance_Sheet-table tr:nth-child(15) th,
+			.Balance_Sheet-table tr:nth-child(20) td,
+			.Balance_Sheet-table tr:nth-child(20) th,
 			.Balance_Sheet-table tr:nth-child(28) td,
 			.Balance_Sheet-table tr:nth-child(28) th,
 			.Balance_Sheet-table tr:nth-child(37) td,
@@ -102,6 +104,8 @@ def individual_company_table_css(number_years: int) -> str:
 			.Balance_Sheet-table tr:nth-child(6) th,
 			.Balance_Sheet-table tr:nth-child(14) td,
 			.Balance_Sheet-table tr:nth-child(14) th,
+			.Balance_Sheet-table tr:nth-child(19) td,
+			.Balance_Sheet-table tr:nth-child(19) th,
 			.Balance_Sheet-table tr:nth-child(27) td,
 			.Balance_Sheet-table tr:nth-child(27) th,
 			.Balance_Sheet-table tr:nth-child(36) td,
@@ -135,7 +139,9 @@ def individual_company_table_css(number_years: int) -> str:
 			  border-left: 2px solid dimgray;
 			  border-right: 2px solid dimgray;
 			}}
-		
+			
+			.Cash_Flow-table tr:nth-child(1) th,
+			.Cash_Flow-table tr:nth-child(1) td,
 			.Cash_Flow-table tr:nth-child(7) td,
 			.Cash_Flow-table tr:nth-child(7) th,
 			.Cash_Flow-table tr:nth-child(11) td,
