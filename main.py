@@ -7,75 +7,81 @@ import Data_Retrieval.eodhd_apis as eodhd
 import Data_Retrieval.shared_functions as helper
 
 load_dotenv()
-EODHD_API_TOKEN = os.getenv('eodhd_api_token')
+EODHD_API_TOKEN = os.getenv("eodhd_api_token")
 
 
 def validate_common_stock_tickers(company_json: dict, ticker: str) -> bool:
-	if not company_json:
-		print(f'Could not find company data for {ticker}')
-		return False
+    if not company_json:
+        print(f"Could not find company data for {ticker}")
+        return False
 
-	return True
-
-
-def save_formatted_individual_finances_by_ticker(region: str, exchange: str, ticker: str, **kwargs) -> None:
-	tickers = eodhd.get_tickers_by_exchange(EODHD_API_TOKEN, exchange)
-	ticker = ticker.upper().strip()
-	for i, company in enumerate(tickers):
-		if company['Code'] == ticker:
-			ticker = helper.validate_ticker(company, exchange)
-
-			company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
-			if not validate_common_stock_tickers(company_json, ticker):
-				return
-
-			company_price = kwargs.get('price', None)
-			if not company_price:
-				company_price = eodhd.get_stock_close_price(EODHD_API_TOKEN, region, ticker)
-
-			fm.print_individual_finances(company_json, current_price=company_price)
-			return
-
-	print(f'Could not find ticker information for {ticker}')
+    return True
 
 
-def save_formatted_individual_finances_by_exchange(region: str, exchange: str, max_tickers: (int, None) = None) -> None:
-	tickers = eodhd.get_tickers_by_exchange(EODHD_API_TOKEN, region)
-	company_count = 0
-	if tickers:
-		for company in tickers:
-			if max_tickers is not None and company_count >= max_tickers:
-				break
+def save_formatted_individual_finances_by_ticker(
+    region: str, exchange: str, ticker: str, **kwargs
+) -> None:
+    tickers = eodhd.get_tickers_by_exchange(EODHD_API_TOKEN, exchange)
+    ticker = ticker.upper().strip()
+    for i, company in enumerate(tickers):
+        if company["Code"] == ticker:
+            ticker = helper.validate_ticker(company, exchange)
 
-			ticker = helper.validate_ticker(company, exchange)
-			if not ticker:
-				continue
+            company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
+            if not validate_common_stock_tickers(company_json, ticker):
+                return
 
-			company_price = eodhd.get_stock_close_price(EODHD_API_TOKEN, region, ticker)
-			if not company_price:
-				print(f"Can't find the price for {ticker}")
-				continue
+            company_price = kwargs.get("price", None)
+            if not company_price:
+                company_price = eodhd.get_stock_close_price(
+                    EODHD_API_TOKEN, region, ticker
+                )
 
-			company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
-			if not validate_common_stock_tickers(company_json, ticker):
-				continue
+            fm.print_individual_finances(company_json, current_price=company_price)
+            return
 
-			fm.print_individual_finances(company_json, current_price=company_price)
-			company_count += 1
-	else:
-		print(f"Could not find any ticker on exchange {exchange}")
+    print(f"Could not find ticker information for {ticker}")
+
+
+def save_formatted_individual_finances_by_exchange(
+    region: str, exchange: str, max_tickers: (int, None) = None
+) -> None:
+    tickers = eodhd.get_tickers_by_exchange(EODHD_API_TOKEN, region)
+    company_count = 0
+    if tickers:
+        for company in tickers:
+            if max_tickers is not None and company_count >= max_tickers:
+                break
+
+            ticker = helper.validate_ticker(company, exchange)
+            if not ticker:
+                continue
+
+            company_price = eodhd.get_stock_close_price(EODHD_API_TOKEN, region, ticker)
+            if not company_price:
+                print(f"Can't find the price for {ticker}")
+                continue
+
+            company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
+            if not validate_common_stock_tickers(company_json, ticker):
+                continue
+
+            fm.print_individual_finances(company_json, current_price=company_price)
+            company_count += 1
+    else:
+        print(f"Could not find any ticker on exchange {exchange}")
 
 
 def show_formatted_individual_finances(exchange: str, ticker: str):
-	return
+    return
 
 
 def main():
-	region = 'AU'
-	exchange = 'AU'
-	ticker = 'dur'
+    region = "AU"
+    exchange = "AU"
+    ticker = "dur"
 
-	save_formatted_individual_finances_by_ticker(region, exchange, ticker, price=1.21)
+    save_formatted_individual_finances_by_ticker(region, exchange, ticker, price=1.21)
 
 
 # fm.calculate_industry_average(EODHD_API_TOKEN, exchange, industry='Industrials')
@@ -86,4 +92,4 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+    main()

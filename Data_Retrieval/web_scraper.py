@@ -14,11 +14,24 @@ def get_all_asx_companies(sort_column="market_cap"):
     :return:
     """
 
-    selected_information = ["title", "code", "sector_id", "last", "change_percent", "month_percent_change",
-                            "1yr_percent_change", "52w_low", "52w_high", "volume", "market_cap"]
+    selected_information = [
+        "title",
+        "code",
+        "sector_id",
+        "last",
+        "change_percent",
+        "month_percent_change",
+        "1yr_percent_change",
+        "52w_low",
+        "52w_high",
+        "volume",
+        "market_cap",
+    ]
 
     # Check if an up to date excel file exists
-    excel_file_name = "Data/All_Stocks/" + datetime.today().strftime('%Y-%m-%d') + "_all_stocks.xlsx"
+    excel_file_name = (
+        "Data/All_Stocks/" + datetime.today().strftime("%Y-%m-%d") + "_all_stocks.xlsx"
+    )
     if os.path.isfile(excel_file_name):
         print("All stocks file exist.")
         all_stock_df = pd.read_excel(excel_file_name)
@@ -36,10 +49,14 @@ def get_all_asx_companies(sort_column="market_cap"):
 
     # Find specific data
     asx_table = soup.find("asx-listed-companies-table")
-    asx_table_str = str(asx_table).replace("&quot;", "").replace("&amp;", "&")\
-        .replace('<asx-listed-companies-table :companies="[', '')\
-        .replace(']"></asx-listed-companies-table>', '').split(",{")
-
+    asx_table_str = (
+        str(asx_table)
+        .replace("&quot;", "")
+        .replace("&amp;", "&")
+        .replace('<asx-listed-companies-table :companies="[', "")
+        .replace(']"></asx-listed-companies-table>', "")
+        .split(",{")
+    )
 
     industry_dict = {
         "12": "Financials",
@@ -53,7 +70,7 @@ def get_all_asx_companies(sort_column="market_cap"):
         "20": "Information Technology",
         "21": "Communication Services",
         "22": "Utilities",
-        "null": "Other"
+        "null": "Other",
     }
 
     data_list = []
@@ -69,7 +86,14 @@ def get_all_asx_companies(sort_column="market_cap"):
                         temp_list.append(industry_dict[item[1]])
                     elif info in ["market_cap", "volume"]:
                         temp_list.append(int(item[1]))
-                    elif info in ["last", "change", "month_percent_change", "1yr_percent_change", "52w_low", "52w_high"]:
+                    elif info in [
+                        "last",
+                        "change",
+                        "month_percent_change",
+                        "1yr_percent_change",
+                        "52w_low",
+                        "52w_high",
+                    ]:
                         temp_list.append(float(item[1]))
                     else:
                         temp_list.append(item[1])
@@ -80,7 +104,9 @@ def get_all_asx_companies(sort_column="market_cap"):
 
     # Create dataframe
     all_stock_df = pd.DataFrame(data_list, columns=selected_information)
-    all_stock_df = all_stock_df.sort_values(['sector_id', 'market_cap'], ascending=[True, False])
+    all_stock_df = all_stock_df.sort_values(
+        ["sector_id", "market_cap"], ascending=[True, False]
+    )
     all_stock_df.to_excel(excel_file_name)
 
     return selected_information, all_stock_df

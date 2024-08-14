@@ -1,14 +1,14 @@
 def individual_company_table_css(number_years: int) -> str:
-	time_series_table_width = 100
-	align = ''
-	if number_years < 5:
-		time_series_table_width = 40
-		align = 'margin: 0 auto'
-	elif number_years < 10:
-		time_series_table_width = 60
-		align = 'margin: 0 auto'
+    time_series_table_width = 100
+    align = ""
+    if number_years < 5:
+        time_series_table_width = 40
+        align = "margin: 0 auto"
+    elif number_years < 10:
+        time_series_table_width = 60
+        align = "margin: 0 auto"
 
-	return f"""
+    return f"""
 		<style>
 			table {{
 				border-collapse: collapse;
