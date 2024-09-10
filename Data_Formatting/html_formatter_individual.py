@@ -3,6 +3,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 import numpy as np
 import pandas as pd
@@ -368,11 +369,14 @@ def calculate_industry_average(api_token: str, exchange: str, industry: str) -> 
 
 
 def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
+    # Avoid divide by 0's
     hl_df.fillna(sys.float_info.epsilon)
-    hl_df.replace(0, sys.float_info.epsilon, inplace=True)
+    # hl_df.replace(0, sys.float_info.epsilon, inplace=True)
     hl_df.replace(0.0, sys.float_info.epsilon, inplace=True)
+
+    # Revenue metrics
     hl_df.loc["Revenue Increase"] = hl_df.loc["totalRevenue"].pct_change()
-    # hl_df.loc['Revenue Increase'].iloc[0] = 0
+
     # Calculate rolling percentage increase over the past 3 cells
     hl_df.loc["Revenue Increase 3yr"] = (
         hl_df.loc["totalRevenue"].rolling(window=3, min_periods=1).mean().pct_change()
@@ -383,6 +387,8 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         .rolling(window=3, min_periods=1)
         .mean()
     )
+
+    # Return metrics
     hl_df.loc["ROE Avg3"] = (
         hl_df.loc["netIncome"]
         / hl_df.loc["totalStockholderEquity"].rolling(window=3, min_periods=1).mean()
@@ -415,6 +421,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
             .mean()
         )
 
+    # Margins
     hl_df.loc["Gross Margin"] = hl_df.loc["grossProfit"] / hl_df.loc["totalRevenue"]
     hl_df.loc["EBITDA Margin"] = hl_df.loc["ebitda"] / hl_df.loc["totalRevenue"]
     hl_df.loc["Net Inc Margin"] = hl_df.loc["netIncome"] / hl_df.loc["totalRevenue"]
@@ -424,9 +431,13 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
     hl_df.loc["FCF Margin"] = hl_df.loc["freeCashFlow"] / hl_df.loc["totalRevenue"]
     hl_df.loc["NCF Margin"] = hl_df.loc["changeInCash"] / hl_df.loc["totalRevenue"]
 
+    # Per share metrics
     hl_df.loc["Common EPS"] = (
         hl_df.loc["netIncomeApplicableToCommonShares"]
         / hl_df.loc["commonStockSharesOutstanding"]
+    )
+    hl_df.loc["EPS Increase 3yr"] = (
+        hl_df.loc["Common EPS"].rolling(window=3, min_periods=1).mean().pct_change()
     )
     hl_df.loc["EBITDA /sh"] = (
         hl_df.loc["ebitda"] / hl_df.loc["commonStockSharesOutstanding"]
@@ -483,9 +494,14 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "FCF Margin",
         "NCF Margin",
         "RND Margin",
+        "EPS Increase 3yr",
         "Marketing Margin",
         "General Margin",
     ]
+
+    # Clip percent rows to bounded -1 to 1 (could improve this to be > < a exponential)
+    for column in percent_columns:
+        hl_df.loc[column] = hl_df.loc[column].clip(lower=-1, upper=1)
 
     # Multiply selected rows by 100
     hl_df.loc[percent_columns] *= 100
@@ -508,6 +524,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "NCF Margin",
         "netIncome",
         "Common EPS",
+        "EPS Increase 3yr",
         "EBITDA /sh",
         "CFO /sh",
         "FCF /sh",
@@ -542,6 +559,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "NCF Margin",
         "RND Margin",
         "Common EPS",
+        "EPS Increase 3yr",
         "EBITDA /sh",
         "CFO /sh",
         "FCF /sh",
@@ -638,11 +656,13 @@ def create_balance_sheet_pie_charts(balance_sheet_df: pd.DataFrame) -> str:
 
 
 def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
-    current_date_str = str(datetime.now().date())
+    current_date = datetime.now().date()
+    six_months_earlier = str(current_date - relativedelta(months=6))
+
     earnings_dict = [
         value
         for period, value in json_data["Earnings"]["Trend"].items()
-        if period >= current_date_str
+        if period >= six_months_earlier
     ]
     earnings_df = pd.DataFrame.from_records(earnings_dict)
 
@@ -914,12 +934,14 @@ def print_individual_finances(json_data: dict, current_price: float) -> None:
     if ticker_code == "TRAK":
         ticker_code = "TRAK_"
 
-    file_location = f"Data_Output/Individual/{str(exchange)}/{str(ticker_code)}.html"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_location = os.path.join(os.path.dirname(script_dir), f"Data_Output/Individual/{str(exchange)}/{str(ticker_code)}.html")
     output_file(file_location)
     try:
         save(column(div_widget))
     except FileNotFoundError:
-        path = f"Data_Output/Individual/{str(exchange)}"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(os.path.dirname(script_dir), f"Data_Output/Individual/{str(exchange)}")
         os.makedirs(path)
 
     print(f"Company formatted html has been saved to {file_location}")

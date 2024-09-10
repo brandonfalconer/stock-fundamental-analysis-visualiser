@@ -5,6 +5,7 @@ Data
 Data_Output
 Data_Retrieval/__pycache__
 Data_Formatting/__pycache__
+Scripts
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -46,13 +47,3 @@ coverage.xml
 .mr.developer.cfg
 .project
 .pydevproject
-
-# Rope
-.ropeproject
-
-# Django stuff:
-*.log
-*.pot
-
-# Sphinx documentation
-docs/_build/

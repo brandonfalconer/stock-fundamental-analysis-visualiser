@@ -91,7 +91,6 @@ def convert_none_to_zero(value):
 
 def convert_to_numeric_divide_by_one_million(value):
     try:
-        # print(value)
         if value != "" and pd.notna(value):
             return float(value) / 1000000
         return value
@@ -288,20 +287,37 @@ def create_pie_chart(df: pd.DataFrame, components: list[str]) -> (str, None):
 
     # Convert the image to base64
     img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
+
+    plt.close(fig)
     return img_base64
 
 
-def validate_ticker(company: dict, exchange: str) -> (str, None):
+def validate_ticker(company: str, exchange: str) -> (str, bool):
     code = company["Code"]
+
+    if not code:
+        print(f"Couldn't find company code for {code}")
+        return False
+
     if company["Type"] != "Common Stock":
         print(f"{code} is not a common stock")
         return False
 
     if company["Exchange"] != exchange:
+        print(f"{code} is not on exchange {exchange}")
         return False
 
     # eodhd has no data for LGI, GLACR
     if code == "LGI" or code == "GLACR":
-        return None
+        return False
 
-    return code
+    return True
+
+
+def calculate_market_cap(company_dict: dict, price: float) -> float:
+    shares_outstanding = company_dict["SharesStats"]["SharesOutstanding"]
+    if shares_outstanding is None or shares_outstanding == 0:
+        if company_dict["outstandingShares"]["annual"]:
+            shares_outstanding = company_dict["outstandingShares"]["annual"]["0"]["shares"]
+
+    return (shares_outstanding * price) / 1000000
