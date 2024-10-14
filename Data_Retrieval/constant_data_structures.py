@@ -207,7 +207,6 @@ cash_flow_statement_order = [
     "cashFlowsOtherOperating",
     "totalCashFromOperatingActivities",
     "capitalExpenditures",
-    "depreciation",
     "otherCashflowsFromInvestingActivities",
     "totalCashflowsFromInvestingActivities",
     "freeCashFlow",

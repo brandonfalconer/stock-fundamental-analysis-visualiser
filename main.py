@@ -14,14 +14,6 @@ load_dotenv()
 EODHD_API_TOKEN = os.getenv("eodhd_api_token")
 
 
-def validate_common_stock_tickers(company_json: dict, ticker: str) -> bool:
-    if not company_json:
-        print(f"Could not find company data for {ticker}")
-        return False
-
-    return True
-
-
 def save_formatted_individual_finances_by_ticker(
     region: str, exchange: str, ticker: str, **kwargs
 ) -> None:
@@ -33,10 +25,10 @@ def save_formatted_individual_finances_by_ticker(
         if company["Code"] == ticker:
             if not helper.validate_ticker(company, exchange):
                 continue
-            
+
             ticker = company["Code"]
             company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
-            if not validate_common_stock_tickers(company_json, ticker):
+            if not helper.validate_common_stock_tickers(company_json, ticker):
                 return
 
             company_price = kwargs.get("price", None)
@@ -83,7 +75,7 @@ def save_formatted_individual_finances_by_exchange(
                 continue
 
             company_json = eodhd.get_fundamental_data(EODHD_API_TOKEN, region, ticker)
-            if not validate_common_stock_tickers(company_json, ticker):
+            if not helper.validate_common_stock_tickers(company_json, ticker):
                 continue
 
             if min_mkt_cap_mil and helper.calculate_market_cap(company_json, company_price) < min_mkt_cap_mil:
@@ -120,22 +112,24 @@ def main():
             exchange = sys.argv[3]
             min_mkt_cap_mil = int(sys.argv[4])
             use_eodhd_apis = bool(sys.argv[5])
-            save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=min_mkt_cap_mil, sleep=True, use_eodhd_apis=use_eodhd_apis)
-        
+
+            sleep = not use_eodhd_apis
+            save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=min_mkt_cap_mil, sleep=sleep, use_eodhd_apis=use_eodhd_apis)
+
         if run_type == "remove_fundamentals":
             region = sys.argv[2]
             exchange = sys.argv[3]
             remove_fundamentals_data(region, exchange)
 
     else:
-        region = "au"
-        exchange = "au"
-        ticker = "cda"
+        region = "us"
+        exchange = "nasdaq"
+        ticker = "impp"
 
         save_formatted_individual_finances_by_ticker(region, exchange, ticker)
 
         # fm.calculate_industry_average(EODHD_API_TOKEN, exchange, industry='Industrials')
-        # save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=100)
+        save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=10)
 
 if __name__ == "__main__":
     main()

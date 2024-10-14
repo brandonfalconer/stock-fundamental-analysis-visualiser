@@ -42,7 +42,7 @@ def get_fundamental_data(api_token: str, exchange_code: str, ticker_code: str) -
     return save_response_to_file(url, file_path)
 
 
-def get_stock_close_price_eodhd(
+def get_stock_close_price(
     api_token: str, exchange_code: str, ticker_code: str
 ) -> float:
     json = get_real_time_data(api_token, exchange_code, ticker_code)

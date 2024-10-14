@@ -44,7 +44,6 @@ def return_json_data(relative_path: str):
 
 
 def save_response_to_file(url: str, file_path: str):
-    print(file_path)
     if os.path.exists(file_path):
         return return_json_data(file_path)
 
@@ -58,7 +57,6 @@ def save_response_to_file(url: str, file_path: str):
         directory = os.path.dirname(file_path)
         if not os.path.exists(directory):
             os.makedirs(directory)
-            print(directory)
 
         # Write the JSON data to the file
         with open(file_path, "w") as json_file:
@@ -251,18 +249,23 @@ def create_table_column(df: pd.DataFrame):
 
 
 def create_pie_chart(df: pd.DataFrame, components: list[str]) -> (str, None):
-    components = [component for component in components if component in df.index]
     component_values = [df.loc[component] for component in components]
-
     component_values_as_floats = [
         abs(float(value)) if value.any() else 0.0 for value in component_values
     ]
     if all(value == 0.0 for value in component_values_as_floats):
         # All values are 0, a pie chart can't be created
         return None
+    
+    total = sum(component_values_as_floats)
+    components = [
+        component if component in df.index and df.loc[component].iloc[0] != '' and (float(df.loc[component]) / total * 100) > 2.5 else ''
+        for component in components
+    ]
 
     fig, ax = plt.subplots()
     autopct = lambda pct: "{:1.1f}%".format(pct) if pct > 2.5 else ""
+
     colors = [
         "#c4e6a5",
         "#8099ff",
@@ -315,9 +318,20 @@ def validate_ticker(company: str, exchange: str) -> (str, bool):
 
 
 def calculate_market_cap(company_dict: dict, price: float) -> float:
-    shares_outstanding = company_dict["SharesStats"]["SharesOutstanding"]
-    if shares_outstanding is None or shares_outstanding == 0:
-        if company_dict["outstandingShares"]["annual"]:
-            shares_outstanding = company_dict["outstandingShares"]["annual"]["0"]["shares"]
+    try:
+        shares_outstanding = company_dict["SharesStats"]["SharesOutstanding"]
+        if shares_outstanding is None or shares_outstanding == 0:
+            if company_dict["outstandingShares"]["annual"]:
+                shares_outstanding = company_dict["outstandingShares"]["annual"]["0"]["shares"]
+    except KeyError:
+        return 0
 
     return (shares_outstanding * price) / 1000000
+
+
+def validate_common_stock_tickers(company_json: dict, ticker: str) -> bool:
+    if not company_json:
+        print(f"Could not find company data for {ticker}")
+        return False
+
+    return True

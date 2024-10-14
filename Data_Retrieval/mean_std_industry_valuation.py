@@ -23,6 +23,7 @@ def add_company_to_valuation_list(
     keys_cant_be_negative = [
         "P/S",
         "EV/EBITDA",
+        "EV/EBIT",
         "P/TB",
         "P/B",
         "Debt/Equity",
@@ -116,6 +117,7 @@ def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
                 "Div Yield",
                 "P/S",
                 "EV/EBITDA",
+                "EV/EBIT",
                 "P/B",
                 "P/TB",
                 "Debt/Equity",

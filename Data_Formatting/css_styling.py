@@ -144,22 +144,22 @@ def individual_company_table_css(number_years: int) -> str:
 			.Cash_Flow-table tr:nth-child(1) td,
 			.Cash_Flow-table tr:nth-child(7) td,
 			.Cash_Flow-table tr:nth-child(7) th,
+			.Cash_Flow-table tr:nth-child(10) td,
+			.Cash_Flow-table tr:nth-child(10) th,
 			.Cash_Flow-table tr:nth-child(11) td,
 			.Cash_Flow-table tr:nth-child(11) th,
-			.Cash_Flow-table tr:nth-child(12) td,
-			.Cash_Flow-table tr:nth-child(12) th,
-			.Cash_Flow-table tr:nth-child(25) td,
-			.Cash_Flow-table tr:nth-child(25) th,
-			.Cash_Flow-table tr:nth-child(27) td,
-			.Cash_Flow-table tr:nth-child(27) th {{
+			.Cash_Flow-table tr:nth-child(24) td,
+			.Cash_Flow-table tr:nth-child(24) th,
+			.Cash_Flow-table tr:nth-child(26) td,
+			.Cash_Flow-table tr:nth-child(26) th {{
 				border-bottom: 2px solid dimgray;
 			}}
 			.Cash_Flow-table tr:nth-child(6) td,
 			.Cash_Flow-table tr:nth-child(6) th,
-			.Cash_Flow-table tr:nth-child(10) td,
-			.Cash_Flow-table tr:nth-child(10) th,
-			.Cash_Flow-table tr:nth-child(24) td,
-			.Cash_Flow-table tr:nth-child(24) th {{
+			.Cash_Flow-table tr:nth-child(9) td,
+			.Cash_Flow-table tr:nth-child(9) th,
+			.Cash_Flow-table tr:nth-child(23) td,
+			.Cash_Flow-table tr:nth-child(23) th {{
 				border-bottom: 1px solid dimgray;
 			}}
 			.Cash_Flow-table tr td:last-child,

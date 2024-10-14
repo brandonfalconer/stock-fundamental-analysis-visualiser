@@ -38,7 +38,6 @@ from Data_Retrieval.shared_functions import (
     validate_ticker,
     convert_to_percentage,
 )
-from main import validate_common_stock_tickers
 
 
 def retrieve_holder_information(json_data: dict) -> None:
@@ -154,6 +153,9 @@ def create_valuation_df(
 
     ebitda = valuation_df.loc["ebitda"].iloc[-1]
     ev_ebitda = handle_divide_by_zero(enterprise_value, ebitda)
+    ebit = valuation_df.loc["ebit"].iloc[-1]
+    ev_ebit = handle_divide_by_zero(enterprise_value, ebit)
+
     trailing_price_earnings = handle_divide_by_zero(current_price, trailing_eps)
     forward_eps = json_data["Highlights"]["EPSEstimateNextYear"]
     forward_price_earnings = handle_divide_by_zero(current_price, forward_eps)
@@ -267,6 +269,7 @@ def create_valuation_df(
         "Debt/Equity": debt_to_equity,
         "P/S": price_sales,
         "EV/EBITDA": ev_ebitda,
+        "EV/EBIT": ev_ebit,
         "P/B": price_book,
         "P/TB": price_tangible_book,
         "Trailing P/E": trailing_price_earnings,
@@ -433,7 +436,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
 
     # Per share metrics
     hl_df.loc["Common EPS"] = (
-        hl_df.loc["netIncomeApplicableToCommonShares"]
+        hl_df.loc["netIncomeApplicableToCommonShares"].fillna(hl_df.loc["netIncome"])
         / hl_df.loc["commonStockSharesOutstanding"]
     )
     hl_df.loc["EPS Increase 3yr"] = (
@@ -659,6 +662,11 @@ def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
     current_date = datetime.now().date()
     six_months_earlier = str(current_date - relativedelta(months=6))
 
+    if current_date.month > 6:  # If today is after June 30, we're in the next financial year
+        end_of_fy = datetime(current_date.year + 1, 6, 30)
+    else:  # If today is before or on June 30, we're in the current financial year
+        end_of_fy = datetime(current_date.year, 6, 30)
+
     earnings_dict = [
         value
         for period, value in json_data["Earnings"]["Trend"].items()
@@ -690,9 +698,28 @@ def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
     except KeyError:
         pass
 
+    shares_outstanding = json_data['SharesStats']['SharesOutstanding']
+    try:
+        eps_estimates = earnings_df.loc['EPS Est Avg']
+        earnings_df.loc["Net Income Equiv"] = eps_estimates.astype(float) * (shares_outstanding / 1000000)
+    except (KeyError, ValueError):
+        pass
+
+    desired_row_order = [
+        "Revenue Est Avg",
+        "Revenue Est Growth",
+        "EPS Est Avg",
+        "Net Income Equiv",
+        "EPS Est Growth",
+        "EPS Est Num of Analysts",
+        "Revenue Est Number of Analysts",
+    ]
+    earnings_df = earnings_df.reindex(desired_row_order)
+
     percent_columns_to_format = ["EPS Est Growth", "Revenue Est Growth"]
     columns_to_format = [
         "EPS Est Avg",
+        "Net Income Equiv",
         "EPS Est Num of Analysts",
         "Revenue Est Avg",
         "Revenue Est Number of Analysts",
@@ -767,7 +794,7 @@ def create_summarised_df(json_data: dict) -> (pd.DataFrame, None):
             if i == 19:
                 break
     except KeyError:
-        print(f"No financial data available")
+        print("No financial data available")
         return pd.DataFrame()
 
     summarised_df = pd.DataFrame(summarised_flattened_data)
@@ -776,7 +803,7 @@ def create_summarised_df(json_data: dict) -> (pd.DataFrame, None):
     try:
         summarised_df.set_index("date", inplace=True)
     except KeyError:
-        print(f"Invalid data format for ticker")
+        print("Invalid data format for ticker")
         return pd.DataFrame()
 
     # Transpose and invert the DataFrame
