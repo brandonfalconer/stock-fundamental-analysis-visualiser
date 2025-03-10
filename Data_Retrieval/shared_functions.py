@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+from enum import Enum
 from io import BytesIO
 
 import matplotlib
@@ -15,6 +16,19 @@ from matplotlib import pyplot as plt
 
 ALPHA_SCALE_FACTOR = 3
 STD_SCALE_FACTOR = 0.75
+
+
+class Leverage(Enum):
+    highly_levered = "Highly Levered"
+    levered = "Levered"
+    minimally_levered = "Minimally Levered"
+    not_levered = "Not Levered"
+
+
+class TrafficLightColors(Enum):
+    red = "rgba(245, 124, 105, 0.7)"
+    yellow = "rgba(247, 234, 134, 0.7)"
+    green = "rgba(163, 247, 156, 0.7)"
 
 
 def create_file_path(relative_path: str):
@@ -111,6 +125,11 @@ def calculate_median_absolute_deviation(data):
     return mad
 
 
+def format_bold(value):
+    """Formats all values in bold."""
+    return f'<div style="font-weight: bold;">{value:.2f}</div>'
+
+
 def conditionally_format(
     value: float,
     average: [np.ndarray, float, None],
@@ -167,6 +186,45 @@ def conditionally_format(
         return f'<div style="background: {background_color}; color: black; font-weight: bold; {draw_underline}"></div>'
 
     return f'<div style="background: {background_color}; color: black; font-weight: bold; {draw_underline}">{value:,}{string_percent}</div>'
+
+
+def format_leverage(value: float) -> str:
+    """
+    Applies a traffic light color scale to leverage values.
+    - Green: Not Levered
+    - Yellow: Minimally/Somewhat Levered
+    - Red: Highly Levered
+    """
+    if isinstance(value, str):
+        if value == Leverage.highly_levered.value:
+            background_color = TrafficLightColors.red.value
+        elif (
+            value == Leverage.levered.value or value == Leverage.minimally_levered.value
+        ):
+            background_color = TrafficLightColors.yellow.value
+        else:
+            background_color = TrafficLightColors.green.value
+        return f'<div style="background: {background_color}; color: black; font-weight: bold;">{value}</div>'
+    else:
+        if value > 1.5:
+            background_color = TrafficLightColors.red.value
+        elif value > 0.8:
+            background_color = TrafficLightColors.yellow.value
+        else:
+            background_color = TrafficLightColors.green.value
+        return f'<div style="background: {background_color}; color: black; font-weight: bold;">{value:.2f}</div>'
+
+
+def format_leverage_df(df: pd.DataFrame) -> None:
+    """
+    Formats the leverage DataFrame with conditional traffic light formatting.
+    """
+    df["Blended Leverage Score"] = df["Blended Leverage Score"].apply(format_leverage)
+    df["Leverage Category"] = df["Leverage Category"].apply(format_leverage)
+
+    for col in df.columns:
+        if col not in ["Blended Leverage Score", "Leverage Category"]:
+            df[col] = df[col].apply(format_bold)
 
 
 def format_rows(
@@ -256,10 +314,16 @@ def create_pie_chart(df: pd.DataFrame, components: list[str]) -> (str, None):
     if all(value == 0.0 for value in component_values_as_floats):
         # All values are 0, a pie chart can't be created
         return None
-    
+
     total = sum(component_values_as_floats)
     components = [
-        component if component in df.index and df.loc[component].iloc[0] != '' and (float(df.loc[component]) / total * 100) > 2.5 else ''
+        (
+            component
+            if component in df.index
+            and df.loc[component].iloc[0] != ""
+            and (float(df.loc[component]) / total * 100) > 2.5
+            else ""
+        )
         for component in components
     ]
 
@@ -306,9 +370,9 @@ def validate_ticker(company: str, exchange: str) -> (str, bool):
         print(f"{code} is not a common stock")
         return False
 
-    if company["Exchange"] != exchange:
-        print(f"{code} is not on exchange {exchange}")
-        return False
+    # if company["Exchange"] != exchange:
+    #     print(f"{code} is not on exchange {exchange}")
+    #     return False
 
     # eodhd has no data for LGI, GLACR
     if code == "LGI" or code == "GLACR":
@@ -322,7 +386,9 @@ def calculate_market_cap(company_dict: dict, price: float) -> float:
         shares_outstanding = company_dict["SharesStats"]["SharesOutstanding"]
         if shares_outstanding is None or shares_outstanding == 0:
             if company_dict["outstandingShares"]["annual"]:
-                shares_outstanding = company_dict["outstandingShares"]["annual"]["0"]["shares"]
+                shares_outstanding = company_dict["outstandingShares"]["annual"]["0"][
+                    "shares"
+                ]
     except KeyError:
         return 0
 
@@ -335,3 +401,30 @@ def validate_common_stock_tickers(company_json: dict, ticker: str) -> bool:
         return False
 
     return True
+
+
+def clean_and_round_dict(data_dict):
+    """
+    Cleans and rounds numerical values in a dictionary:
+    - Rounds float/int values to 2 decimal places.
+    - Replaces NaN values with an empty string.
+    - Leaves non-numeric values unchanged.
+
+    Args:
+        data_dict (dict): Dictionary with numerical and non-numerical values.
+
+    Returns:
+        dict: A new dictionary with cleaned and rounded values.
+    """
+    return {
+        key: (
+            ""
+            if isinstance(value, float) and np.isnan(value)  # Replace NaN with ""
+            else (
+                round(value, 2)
+                if isinstance(value, (float, int))  # Round numbers
+                else value
+            )
+        )  # Leave non-numeric values unchanged
+        for key, value in data_dict.items()
+    }

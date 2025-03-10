@@ -29,7 +29,9 @@ from Data_Retrieval.mean_std_industry_valuation import (
     add_company_to_valuation_list,
 )
 from Data_Retrieval.shared_functions import (
+    Leverage,
     convert_to_numeric_divide_by_one_million,
+    format_leverage_df,
     format_rows,
     format_cell,
     convert_none_to_zero,
@@ -37,6 +39,7 @@ from Data_Retrieval.shared_functions import (
     create_pie_chart,
     validate_ticker,
     convert_to_percentage,
+    clean_and_round_dict,
 )
 
 
@@ -109,17 +112,19 @@ def create_financial_statement_df(
 
 
 def create_valuation_df(
-    json_data: dict, valuation_df: pd.DataFrame, current_price: float
+    json_data: dict, summarised_df: pd.DataFrame, current_price: float
 ) -> (pd.DataFrame, dict):
     # Income Statement
-    revenues = valuation_df.loc["totalRevenue"].iloc[-1]
-    earnings = valuation_df.loc["netIncome"].iloc[-1]
+    revenues = summarised_df.loc["totalRevenue"].iloc[-1]
+    earnings = summarised_df.loc["netIncome"].iloc[-1]
     try:
-        shares_outstanding = valuation_df.loc["commonStockSharesOutstanding"].iloc[-1]
+        shares_outstanding = convert_to_numeric_divide_by_one_million(
+            json_data["SharesStats"]["SharesOutstanding"]
+        )
         if shares_outstanding is None or np.isnan(shares_outstanding):
-            shares_outstanding = convert_to_numeric_divide_by_one_million(
-                json_data["SharesStats"]["SharesOutstanding"]
-            )
+            shares_outstanding = summarised_df.loc["commonStockSharesOutstanding"].iloc[
+                -1
+            ]
     except KeyError:
         shares_outstanding = None
 
@@ -129,12 +134,12 @@ def create_valuation_df(
     except (ValueError, TypeError):
         market_cap = json_data["Highlights"]["MarketCapitalization"] or 0
 
-    total_cash = valuation_df.loc["cash"].iloc[-1]
+    total_cash = summarised_df.loc["cash"].iloc[-1]
     try:
         total_debt = (
-            valuation_df.loc["shortLongTermDebtTotal"].iloc[-1]
-            or valuation_df.loc["shortTermDebt"].iloc[-1]
-            + valuation_df.loc["longTermDebtTotal"].iloc[-1]
+            summarised_df.loc["shortLongTermDebtTotal"].iloc[-1]
+            or summarised_df.loc["shortTermDebt"].iloc[-1]
+            + summarised_df.loc["longTermDebtTotal"].iloc[-1]
         )
     except (ValueError, TypeError):
         total_debt = 0
@@ -151,9 +156,9 @@ def create_valuation_df(
     except (ValueError, TypeError):
         enterprise_value = market_cap
 
-    ebitda = valuation_df.loc["ebitda"].iloc[-1]
+    ebitda = summarised_df.loc["ebitda"].iloc[-1]
     ev_ebitda = handle_divide_by_zero(enterprise_value, ebitda)
-    ebit = valuation_df.loc["ebit"].iloc[-1]
+    ebit = summarised_df.loc["ebit"].iloc[-1]
     ev_ebit = handle_divide_by_zero(enterprise_value, ebit)
 
     trailing_price_earnings = handle_divide_by_zero(current_price, trailing_eps)
@@ -182,18 +187,18 @@ def create_valuation_df(
         price_earnings_growth_3yr = None
 
     # Balance Sheet
-    current_assets = valuation_df.loc["totalCurrentAssets"].iloc[-1]
-    total_assets = valuation_df.loc["totalAssets"].iloc[-1]
-    current_debt = valuation_df.loc["shortTermDebt"].iloc[-1]
-    # current_liabilities = valuation_df.loc['totalCurrentLiabilities'].iloc[-1]
-    total_liabilities = valuation_df.loc["totalLiab"].iloc[-1]
+    current_assets = summarised_df.loc["totalCurrentAssets"].iloc[-1]
+    total_assets = summarised_df.loc["totalAssets"].iloc[-1]
+    current_debt = summarised_df.loc["shortTermDebt"].iloc[-1]
+    # current_liabilities = summarised_df.loc['totalCurrentLiabilities'].iloc[-1]
+    total_liabilities = summarised_df.loc["totalLiab"].iloc[-1]
     try:
         book_value = total_assets - total_liabilities
     except (ValueError, TypeError):
         book_value = None
 
-    intangible_assets = valuation_df.loc["intangibleAssets"].iloc[-1]
-    goodwill = valuation_df.loc["goodWill"].iloc[-1]
+    intangible_assets = summarised_df.loc["intangibleAssets"].iloc[-1]
+    goodwill = summarised_df.loc["goodWill"].iloc[-1]
     try:
         tangible_assets = total_assets - intangible_assets - goodwill
     except (ValueError, TypeError):
@@ -213,7 +218,7 @@ def create_valuation_df(
     except (ValueError, TypeError):
         net_cash = None
     price_net_cash = handle_divide_by_zero(market_cap, net_cash)
-    preferred_stock_equity = valuation_df.loc["preferredStockTotalEquity"].iloc[-1]
+    preferred_stock_equity = summarised_df.loc["preferredStockTotalEquity"].iloc[-1]
     try:
         net_net = current_assets - (
             total_liabilities
@@ -224,15 +229,15 @@ def create_valuation_df(
         net_net = None
     price_net_net = handle_divide_by_zero(market_cap, net_net)
     debt_to_equity = handle_divide_by_zero(
-        total_liabilities, valuation_df.loc["totalStockholderEquity"].iloc[-1]
+        total_liabilities, summarised_df.loc["totalStockholderEquity"].iloc[-1]
     )
 
     # Cash Flow
     price_operating_cash_flow = handle_divide_by_zero(
-        market_cap, valuation_df.loc["totalCashFromOperatingActivities"].iloc[-1]
+        market_cap, summarised_df.loc["totalCashFromOperatingActivities"].iloc[-1]
     )
     price_free_cash_flow = handle_divide_by_zero(
-        market_cap, valuation_df.loc["freeCashFlow"].iloc[-1]
+        market_cap, summarised_df.loc["freeCashFlow"].iloc[-1]
     )
     dividend_per_share = json_data["Highlights"]["DividendShare"]
     dividend_yield = json_data["Highlights"]["DividendYield"] or 0
@@ -241,8 +246,9 @@ def create_valuation_df(
     except (ValueError, TypeError):
         dividend = None
     price_dividend = handle_divide_by_zero(market_cap, dividend)
-    interest_coverage = handle_divide_by_zero(
-        valuation_df.loc["ebit"].iloc[-1], valuation_df.loc["interestExpense"].iloc[-1]
+    interest_coverage_ratio = handle_divide_by_zero(
+        summarised_df.loc["ebit"].iloc[-1],
+        summarised_df.loc["interestExpense"].iloc[-1],
     )
     """
 	DSCR =  Net Operating Income / Debt Service
@@ -252,7 +258,7 @@ def create_valuation_df(
 	Debt Service = (Principal Repayment) + (Interest Payments) + (Lease Payments)
 	"""
     debt_service_coverage = handle_divide_by_zero(
-        valuation_df.loc["operatingIncome"].iloc[-1], current_debt
+        summarised_df.loc["operatingIncome"].iloc[-1], current_debt
     )
     try:
         asset_coverage = tangible_assets - current_debt
@@ -281,15 +287,11 @@ def create_valuation_df(
         "P/Cash": price_cash,
         "P/NCash": price_net_cash,
         "P/NN": price_net_net,
-        "Interest Cov": interest_coverage,
+        "Interest Cov": interest_coverage_ratio,
         "Service Cov": debt_service_coverage,
         "Asset Cov": asset_coverage_ratio,
     }
-    df_dict = {
-        key: (round(value, 2) if isinstance(value, (float, int)) else value)
-        and (value if isinstance(value, float) and not np.isnan(value) else "")
-        for key, value in df_dict.items()
-    }
+    clean_and_round_dict(df_dict)
     result_df = pd.DataFrame.from_dict([df_dict])
     try:
         result_df["Div Yield"] = round(result_df["Div Yield"] * 100, 2)
@@ -315,7 +317,13 @@ def create_valuation_df(
     industry_average_valuation_dict = return_mean_std_industry_valuations(
         exchange, industry
     )
-    large_positive = ["Revenue", "Div Yield"]
+    large_positive = [
+        "Revenue",
+        "Div Yield",
+        "Interest Cov",
+        "Service Cov",
+        "Asset Cov",
+    ]
 
     if industry_average_valuation_dict:
         for col, median in industry_average_valuation_dict["Median"].items():
@@ -337,7 +345,79 @@ def create_valuation_df(
                     red_negative=True,
                 )
 
-    return result_df, ordered_dict
+    leverage_df = calculate_leverage_df(
+        total_debt,
+        total_cash,
+        market_cap,
+        enterprise_value,
+        debt_to_equity,
+        interest_coverage_ratio,
+        asset_coverage_ratio,
+    )
+    return result_df, ordered_dict, leverage_df
+
+
+def calculate_leverage_df(
+    total_debt: float,
+    total_cash: float,
+    market_cap: float,
+    enterprise_value: float,
+    debt_to_equity: float,
+    interest_coverage_ratio: float,
+    asset_coverage_ratio: float,
+):
+    # Net Common Overhang
+    net_common_overhang = total_debt - total_cash
+
+    # Market Cap / EV Ratio
+    mc_ev_ratio = market_cap / enterprise_value
+
+    # Compute a blended leverage score
+    # Normalize metrics using log scaling to reduce extreme value impact
+    debt_equity_scaled = np.log1p(debt_to_equity)  # log(1 + x) to avoid zero issues
+    interest_cov_scaled = np.log1p(
+        1 + max(0, (5 - interest_coverage_ratio))
+    )  # Reciprocal, lower is better
+    mc_ev_scaled = np.log1p(
+        1 + (1 - mc_ev_ratio)
+    )  # Higher MC/EV means lower debt reliance
+    asset_cov_scaled = np.log1p(
+        1 + max(0, (10 - asset_coverage_ratio))
+    )  # Reciprocal, lower is better
+
+    # Weighted sum approach
+    blended_score = (
+        0.35 * debt_equity_scaled
+        + 0.25 * interest_cov_scaled
+        + 0.20 * mc_ev_scaled
+        + 0.20 * asset_cov_scaled
+    )
+
+    # Categorize Leverage
+    def categorize_leverage(score):
+        if score > 1.5:
+            return Leverage.highly_levered.value
+        elif score > 0.8:
+            return Leverage.levered.value
+        elif score > 0.3:
+            return Leverage.minimally_levered.value
+        else:
+            return Leverage.not_levered.value
+
+    leverage_category = categorize_leverage(blended_score)
+    leverage_dict = {
+        "Net Common Overhang": net_common_overhang,
+        "Debt/Equity": debt_to_equity,
+        "Interest Coverage Ratio": interest_coverage_ratio,
+        "Asset Coverage Ratio": asset_coverage_ratio,
+        "Market Cap / EV": mc_ev_ratio,
+        "Blended Leverage Score": blended_score,
+    }
+    clean_and_round_dict(leverage_dict)
+    leverage_dict["Leverage Category"] = leverage_category
+    leverage_df = pd.DataFrame([leverage_dict])
+    format_leverage_df(leverage_df)
+    return leverage_df
 
 
 def calculate_industry_average(api_token: str, exchange: str, industry: str) -> None:
@@ -387,6 +467,12 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
 
     hl_df.loc["Turnover Avg3"] = (
         (hl_df.loc["netIncome"] / hl_df.loc["totalRevenue"])
+        .rolling(window=3, min_periods=1)
+        .mean()
+    )
+
+    hl_df.loc["Cash Conversion Avg3"] = (
+        (hl_df.loc["totalCashFromOperatingActivities"] / hl_df.loc["ebitda"])
         .rolling(window=3, min_periods=1)
         .mean()
     )
@@ -487,6 +573,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "Revenue Increase",
         "Revenue Increase 3yr",
         "Turnover Avg3",
+        "Cash Conversion Avg3",
         "ROE Avg3",
         "ROIC Avg3",
         "CROIC Avg3",
@@ -516,6 +603,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "Revenue Increase",
         "Revenue Increase 3yr",
         "Turnover Avg3",
+        "Cash Conversion Avg3",
         "ROE Avg3",
         "ROIC Avg3",
         "CROIC Avg3",
@@ -552,6 +640,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "Revenue Increase 3yr",
         "Gross Margin",
         "Turnover Avg3",
+        "Cash Conversion Avg3",
         "ROE Avg3",
         "ROIC Avg3",
         "CROIC Avg3",
@@ -662,7 +751,9 @@ def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
     current_date = datetime.now().date()
     six_months_earlier = str(current_date - relativedelta(months=6))
 
-    if current_date.month > 6:  # If today is after June 30, we're in the next financial year
+    if (
+        current_date.month > 6
+    ):  # If today is after June 30, we're in the next financial year
         end_of_fy = datetime(current_date.year + 1, 6, 30)
     else:  # If today is before or on June 30, we're in the current financial year
         end_of_fy = datetime(current_date.year, 6, 30)
@@ -698,10 +789,12 @@ def create_earnings_estimates_df(json_data: dict) -> pd.DataFrame:
     except KeyError:
         pass
 
-    shares_outstanding = json_data['SharesStats']['SharesOutstanding']
+    shares_outstanding = json_data["SharesStats"]["SharesOutstanding"]
     try:
-        eps_estimates = earnings_df.loc['EPS Est Avg']
-        earnings_df.loc["Net Income Equiv"] = eps_estimates.astype(float) * (shares_outstanding / 1000000)
+        eps_estimates = earnings_df.loc["EPS Est Avg"]
+        earnings_df.loc["Net Income Equiv"] = eps_estimates.astype(float) * (
+            shares_outstanding / 1000000
+        )
     except (KeyError, ValueError):
         pass
 
@@ -825,7 +918,9 @@ def print_individual_finances(json_data: dict, current_price: float) -> None:
         return
 
     # Create valuation df based off summarised_df
-    valuation_df, _ = create_valuation_df(json_data, summarised_df, current_price)
+    valuation_df, _, levereage_df = create_valuation_df(
+        json_data, summarised_df, current_price
+    )
 
     # Create highlights df based off summarised_df
     hl_df = create_highlights_df(summarised_df)
@@ -924,6 +1019,10 @@ def print_individual_finances(json_data: dict, current_price: float) -> None:
             index=False, classes="short-table", escape=False
         )
 
+    combined_html += f"<h2{align}>Leverage Ratios</h2>" + levereage_df.to_html(
+        classes="short-table", index=False, escape=False
+    )
+
     for df, title in zip(financial_statement_dataframes, financial_statements.keys()):
         classes = title + "-table time-series"
         if title == "Balance_Sheet":
@@ -962,13 +1061,18 @@ def print_individual_finances(json_data: dict, current_price: float) -> None:
         ticker_code = "TRAK_"
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_location = os.path.join(os.path.dirname(script_dir), f"Data_Output/Individual/{str(exchange)}/{str(ticker_code)}.html")
+    file_location = os.path.join(
+        os.path.dirname(script_dir),
+        f"Data_Output/Individual/{str(exchange)}/{str(ticker_code)}.html",
+    )
     output_file(file_location)
     try:
         save(column(div_widget))
     except FileNotFoundError:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(os.path.dirname(script_dir), f"Data_Output/Individual/{str(exchange)}")
+        path = os.path.join(
+            os.path.dirname(script_dir), f"Data_Output/Individual/{str(exchange)}"
+        )
         os.makedirs(path)
 
     print(f"Company formatted html has been saved to {file_location}")

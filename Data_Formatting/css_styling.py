@@ -71,14 +71,14 @@ def individual_company_table_css(number_years: int) -> str:
 			.highlight-table tr:nth-child(1) th,
 			.highlight-table tr:nth-child(4) td,
 			.highlight-table tr:nth-child(4) th,
-			.highlight-table tr:nth-child(8) td,
-			.highlight-table tr:nth-child(8) th,
-			.highlight-table tr:nth-child(14) td,
-			.highlight-table tr:nth-child(14) th,
+			.highlight-table tr:nth-child(9) td,
+			.highlight-table tr:nth-child(9) th,
 			.highlight-table tr:nth-child(15) td,
 			.highlight-table tr:nth-child(15) th,
-			.highlight-table tr:nth-child(23) td,
-			 .highlight-table tr:nth-child(23) th {{
+			.highlight-table tr:nth-child(16) td,
+			.highlight-table tr:nth-child(16) th,
+			.highlight-table tr:nth-child(24) td,
+			 .highlight-table tr:nth-child(24) th {{
 				border-bottom: 2px solid dimgray;
 			}}
 		

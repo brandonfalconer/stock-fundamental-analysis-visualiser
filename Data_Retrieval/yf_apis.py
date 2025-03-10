@@ -2,7 +2,7 @@ import yfinance as yf
 
 
 def retrieve_stock_price(exchange: str, ticker: str) -> (float, None):
-    if exchange == "AU":
+    if exchange.lower() == "au":
         ticker = ticker + ".AX"
 
     cda = yf.Ticker(ticker)

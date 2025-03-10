@@ -9,7 +9,9 @@ from Data_Retrieval.shared_functions import calculate_median_absolute_deviation
 def add_company_to_valuation_list(
     ordered_dict: dict, exchange: str, company_code: str, industry: str
 ) -> None:
-    file_path = f"F:/Stock Analysis/Data/Fundamentals/Valuation/{exchange}/{industry}.json"
+    file_path = (
+        f"F:/Stock Analysis/Data/Fundamentals/Valuation/{exchange}/{industry}.json"
+    )
 
     try:
         market_cap = round(float(ordered_dict["MktCap"]), 2)
@@ -75,7 +77,9 @@ def add_company_to_valuation_list(
     except FileNotFoundError:
         print(f"File not found: {file_path}, creating a new file.")
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        directory = os.path.join(os.path.dirname(script_dir), f"Data/Fundamentals/Valuation/{exchange}")
+        directory = os.path.join(
+            os.path.dirname(script_dir), f"Data/Fundamentals/Valuation/{exchange}"
+        )
         if not os.path.exists(directory):
             os.makedirs(directory)
 
@@ -102,7 +106,10 @@ def update_existing_df(keys_cant_be_negative: list, ordered_dict: dict):
 
 def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(os.path.dirname(script_dir), f"Data/Fundamentals/Valuation/{exchange}/{industry}.json")
+    file_path = os.path.join(
+        os.path.dirname(script_dir),
+        f"Data/Fundamentals/Valuation/{exchange}/{industry}.json",
+    )
     try:
         with open(file_path, "r") as json_file:
             # Parse the JSON data
@@ -174,7 +181,10 @@ def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
         return {}
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    result_file_path = os.path.join(os.path.dirname(script_dir), f"Data/Fundamentals/Valuation/{exchange}/{industry}_Average.json")
+    result_file_path = os.path.join(
+        os.path.dirname(script_dir),
+        f"Data/Fundamentals/Valuation/{exchange}/{industry}_Average.json",
+    )
     with open(result_file_path, "w") as result_file:
         json.dump(result_dict, result_file)
 
@@ -183,7 +193,10 @@ def return_mean_std_industry_valuations(exchange: str, industry: str) -> dict:
 
 def print_industry_averages(exchange: str, industry: str) -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(os.path.dirname(script_dir), f"Data/Fundamentals/Valuation/{exchange}/{industry}_Average.json")
+    file_path = os.path.join(
+        os.path.dirname(script_dir),
+        f"Data/Fundamentals/Valuation/{exchange}/{industry}_Average.json",
+    )
 
     try:
         with open(file_path, "r") as json_file:

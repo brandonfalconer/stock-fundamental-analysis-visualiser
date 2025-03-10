@@ -18,6 +18,9 @@ def save_formatted_individual_finances_by_ticker(
     region: str, exchange: str, ticker: str, **kwargs
 ) -> None:
     tickers = eodhd.get_tickers_by_exchange(EODHD_API_TOKEN, exchange)
+    if tickers is None:
+        print(f"Failed to retrieve tickers: {exchange}")
+        return
     ticker = ticker.upper().strip()
     exchange = exchange.upper().strip()
     region = region.upper().strip()
@@ -64,7 +67,9 @@ def save_formatted_individual_finances_by_exchange(
 
             ticker = company["Code"]
             if use_eodhd_apis:
-                company_price = eodhd.get_stock_close_price(EODHD_API_TOKEN, region, ticker)
+                company_price = eodhd.get_stock_close_price(
+                    EODHD_API_TOKEN, region, ticker
+                )
             else:
                 company_price = yf_apis.retrieve_stock_price(exchange, ticker)
 
@@ -78,7 +83,11 @@ def save_formatted_individual_finances_by_exchange(
             if not helper.validate_common_stock_tickers(company_json, ticker):
                 continue
 
-            if min_mkt_cap_mil and helper.calculate_market_cap(company_json, company_price) < min_mkt_cap_mil:
+            if (
+                min_mkt_cap_mil
+                and helper.calculate_market_cap(company_json, company_price)
+                < min_mkt_cap_mil
+            ):
                 continue
 
             fm.print_individual_finances(company_json, current_price=company_price)
@@ -89,7 +98,9 @@ def save_formatted_individual_finances_by_exchange(
 
 def remove_fundamentals_data(region: str, exchange: str):
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    folder_path = os.path.join(script_dir, f"Data_Output/Fundamentals/{exchange.upper()}")
+    folder_path = os.path.join(
+        script_dir, f"Data_Output/Fundamentals/{exchange.upper()}"
+    )
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
         try:
@@ -111,10 +122,16 @@ def main():
             region = sys.argv[2]
             exchange = sys.argv[3]
             min_mkt_cap_mil = int(sys.argv[4])
-            use_eodhd_apis = bool(sys.argv[5])
+            use_eodhd_apis = bool(int(sys.argv[5]))
 
             sleep = not use_eodhd_apis
-            save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=min_mkt_cap_mil, sleep=sleep, use_eodhd_apis=use_eodhd_apis)
+            save_formatted_individual_finances_by_exchange(
+                region,
+                exchange,
+                min_mkt_cap_mil=min_mkt_cap_mil,
+                sleep=sleep,
+                use_eodhd_apis=use_eodhd_apis,
+            )
 
         if run_type == "remove_fundamentals":
             region = sys.argv[2]
@@ -122,14 +139,13 @@ def main():
             remove_fundamentals_data(region, exchange)
 
     else:
-        region = "us"
-        exchange = "nasdaq"
-        ticker = "impp"
+        region = "au"
+        exchange = "au"
+        tickers = ["cda", "ehl", "cvl", "kar"]
 
-        save_formatted_individual_finances_by_ticker(region, exchange, ticker)
+        for ticker in tickers:
+            save_formatted_individual_finances_by_ticker(region, exchange, ticker)
 
-        # fm.calculate_industry_average(EODHD_API_TOKEN, exchange, industry='Industrials')
-        save_formatted_individual_finances_by_exchange(region, exchange, min_mkt_cap_mil=10)
 
 if __name__ == "__main__":
     main()
