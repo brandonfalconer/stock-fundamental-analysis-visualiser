@@ -12,14 +12,14 @@ def get_exchange_data(api_token: str) -> dict:
     return save_response_to_file(url, file_path)
 
 
-def get_tickers_by_exchange(api_token: str, exchange_code: str) -> dict:
+def get_tickers_by_exchange(api_token: str, exchange_code: str, override: bool = False) -> dict:
     url = f"https://eodhd.com/api/exchange-symbol-list/{exchange_code}?api_token={api_token}&fmt=json"
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(
         os.path.dirname(script_dir),
-        f"Data/Tickers/{datetime.now().month}.{datetime.now().year}/tickers_{exchange_code}.json",
+        f"Data/Tickers/{datetime.now().year}/tickers_{exchange_code}.json",
     )
-    return save_response_to_file(url, file_path)
+    return save_response_to_file(url, file_path, override)
 
 
 def get_end_of_day_data(api_token: str, exchange_code: str, ticker_code: str) -> dict:
@@ -32,6 +32,7 @@ def get_end_of_day_data(api_token: str, exchange_code: str, ticker_code: str) ->
     return save_response_to_file(url, file_path)
 
 
+# This isn't available under the Fundumental plan anymore...
 def get_real_time_data(api_token: str, exchange_code: str, ticker_code: str) -> dict:
     url = f"https://eodhd.com/api/real-time/{ticker_code}.{exchange_code}?api_token={api_token}&fmt=json"
     ticker_code = adjust_ticker_codes(ticker_code)
@@ -43,15 +44,15 @@ def get_real_time_data(api_token: str, exchange_code: str, ticker_code: str) -> 
     return save_response_to_file(url, file_path)
 
 
-def get_fundamental_data(api_token: str, exchange_code: str, ticker_code: str) -> dict:
+def get_fundamental_data(api_token: str, exchange_code: str, ticker_code: str, override: bool = False) -> dict:
     url = f"https://eodhd.com/api/fundamentals/{ticker_code}.{exchange_code}?api_token={api_token}&fmt=json"
     ticker_code = adjust_ticker_codes(ticker_code)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(
         os.path.dirname(script_dir),
-        f"Data/Fundamentals/{exchange_code}/{datetime.now().month}.{datetime.now().year}/{ticker_code}.json",
+        f"Data/Fundamentals/{exchange_code}/{datetime.now().year}/{ticker_code}.json",
     )
-    return save_response_to_file(url, file_path)
+    return save_response_to_file(url, file_path, override)
 
 
 def get_stock_close_price(

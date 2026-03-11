@@ -23,12 +23,14 @@ class Leverage(Enum):
     levered = "Levered"
     minimally_levered = "Minimally Levered"
     not_levered = "Not Levered"
+    unkown = "Unknown"
 
 
 class TrafficLightColors(Enum):
     red = "rgba(245, 124, 105, 0.7)"
     yellow = "rgba(247, 234, 134, 0.7)"
-    green = "rgba(163, 247, 156, 0.7)"
+    light_green = "rgba(196, 255, 198, 0.7)"
+    green = "rgba(159, 255, 148, 0.7)"
 
 
 def create_file_path(relative_path: str):
@@ -57,8 +59,8 @@ def return_json_data(relative_path: str):
     return None
 
 
-def save_response_to_file(url: str, file_path: str):
-    if os.path.exists(file_path):
+def save_response_to_file(url: str, file_path: str, override: bool = False):
+    if os.path.exists(file_path) and not override:
         return return_json_data(file_path)
 
     response = requests.get(url)
@@ -127,7 +129,10 @@ def calculate_median_absolute_deviation(data):
 
 def format_bold(value):
     """Formats all values in bold."""
-    return f'<div style="font-weight: bold;">{value:.2f}</div>'
+    if isinstance(value, (int, float)):
+        return f'<div style="font-weight: bold;">{value:.2f}</div>'
+    else:
+        return f'<div style="font-weight: bold;">{value}</div>'
 
 
 def conditionally_format(
@@ -198,21 +203,25 @@ def format_leverage(value: float) -> str:
     if isinstance(value, str):
         if value == Leverage.highly_levered.value:
             background_color = TrafficLightColors.red.value
-        elif (
-            value == Leverage.levered.value or value == Leverage.minimally_levered.value
-        ):
+        elif value == Leverage.levered.value:
             background_color = TrafficLightColors.yellow.value
+        elif value == Leverage.minimally_levered.value:
+            background_color = TrafficLightColors.light_green.value
         else:
             background_color = TrafficLightColors.green.value
         return f'<div style="background: {background_color}; color: black; font-weight: bold;">{value}</div>'
-    else:
-        if value > 1.5:
+    elif isinstance(value, (int, float)):
+        if value > 0.7:
             background_color = TrafficLightColors.red.value
-        elif value > 0.8:
+        elif value > 0.4:
             background_color = TrafficLightColors.yellow.value
+        elif value > 0.2:
+            background_color = TrafficLightColors.light_green.value
         else:
             background_color = TrafficLightColors.green.value
         return f'<div style="background: {background_color}; color: black; font-weight: bold;">{value:.2f}</div>'
+    else:
+        return f'<div style=color: black; font-weight: bold;">Unknown</div>'
 
 
 def format_leverage_df(df: pd.DataFrame) -> None:
@@ -370,13 +379,22 @@ def validate_ticker(company: str, exchange: str) -> (str, bool):
         print(f"{code} is not a common stock")
         return False
 
-    # if company["Exchange"] != exchange:
-    #     print(f"{code} is not on exchange {exchange}")
-    #     return False
+    if company["Exchange"] != exchange:
+        print(f"{code} is not on exchange {exchange}")
+        return False
 
     # eodhd has no data for LGI, GLACR
-    if code == "LGI" or code == "GLACR":
+    if code == "LGI" or code == "GLACR" :
         return False
+
+    # LSE ticker that is missing data (foreign companies with secondary listings)
+    if code.startswith("0"):
+        return False
+
+    # Missing data, erroneous etc
+    if code == "0FF9" or code == "0KII" or code == "SDVP"or code == "BNT":
+        return False
+
 
     return True
 

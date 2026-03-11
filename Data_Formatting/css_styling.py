@@ -61,6 +61,11 @@ def individual_company_table_css(number_years: int) -> str:
 		 		width: 50%;
 				margin: 0 auto;
 			}}
+
+			.medium-table {{
+		 		width: 55%;
+				margin: 0 auto;
+			}}
 			
 			.highlight-table {{
 				thead > tr > th:first-child {{
@@ -77,8 +82,14 @@ def individual_company_table_css(number_years: int) -> str:
 			.highlight-table tr:nth-child(15) th,
 			.highlight-table tr:nth-child(16) td,
 			.highlight-table tr:nth-child(16) th,
-			.highlight-table tr:nth-child(24) td,
-			 .highlight-table tr:nth-child(24) th {{
+			.highlight-table tr:nth-child(19) td,
+			.highlight-table tr:nth-child(19) th,
+			.highlight-table tr:nth-child(20) td,
+			.highlight-table tr:nth-child(20) th,
+			.highlight-table tr:nth-child(22) td,
+			.highlight-table tr:nth-child(22) th,
+			.highlight-table tr:nth-child(25) td,
+			 .highlight-table tr:nth-child(25) th {{
 				border-bottom: 2px solid dimgray;
 			}}
 		

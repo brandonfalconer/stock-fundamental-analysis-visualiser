@@ -131,17 +131,21 @@ def create_valuation_df(
     trailing_eps = handle_divide_by_zero(earnings, shares_outstanding)
     try:
         market_cap = shares_outstanding * current_price
-    except (ValueError, TypeError):
+    except (KeyError, ValueError, TypeError):
         market_cap = json_data["Highlights"]["MarketCapitalization"] or 0
 
-    total_cash = summarised_df.loc["cash"].iloc[-1]
+    try:
+        total_cash = summarised_df.loc["cash"].iloc[-1]
+    except KeyError:
+        total_cash = 0
+
     try:
         total_debt = (
             summarised_df.loc["shortLongTermDebtTotal"].iloc[-1]
             or summarised_df.loc["shortTermDebt"].iloc[-1]
             + summarised_df.loc["longTermDebtTotal"].iloc[-1]
         )
-    except (ValueError, TypeError):
+    except (KeyError, ValueError, TypeError):
         total_debt = 0
 
     try:
@@ -153,7 +157,7 @@ def create_valuation_df(
             else:
                 enterprise_value = market_cap
 
-    except (ValueError, TypeError):
+    except (KeyError, ValueError, TypeError):
         enterprise_value = market_cap
 
     ebitda = summarised_df.loc["ebitda"].iloc[-1]
@@ -183,22 +187,22 @@ def create_valuation_df(
         else:
             price_earnings_growth_3yr = None
 
-    except (ValueError, KeyError):
+    except (KeyError, ValueError, KeyError):
         price_earnings_growth_3yr = None
 
     # Balance Sheet
-    current_assets = summarised_df.loc["totalCurrentAssets"].iloc[-1]
-    total_assets = summarised_df.loc["totalAssets"].iloc[-1]
-    current_debt = summarised_df.loc["shortTermDebt"].iloc[-1]
+    current_assets = summarised_df.loc["totalCurrentAssets"].iloc[-1] if "totalCurrentAssets" in summarised_df.index else 0
+    total_assets = summarised_df.loc["totalAssets"].iloc[-1] if "totalAssets" in summarised_df.index else 0
+    current_debt = summarised_df.loc["shortTermDebt"].iloc[-1] if "shortTermDebt" in summarised_df.index else 0
     # current_liabilities = summarised_df.loc['totalCurrentLiabilities'].iloc[-1]
-    total_liabilities = summarised_df.loc["totalLiab"].iloc[-1]
+    total_liabilities = summarised_df.loc["totalLiab"].iloc[-1] if "totalLiab" in summarised_df.index else 0
     try:
         book_value = total_assets - total_liabilities
     except (ValueError, TypeError):
         book_value = None
 
-    intangible_assets = summarised_df.loc["intangibleAssets"].iloc[-1]
-    goodwill = summarised_df.loc["goodWill"].iloc[-1]
+    intangible_assets = summarised_df.loc["intangibleAssets"].iloc[-1] if "intangibleAssets" in summarised_df.index else 0
+    goodwill = summarised_df.loc["goodWill"].iloc[-1] if "goodWill" in summarised_df.index else 0
     try:
         tangible_assets = total_assets - intangible_assets - goodwill
     except (ValueError, TypeError):
@@ -218,7 +222,7 @@ def create_valuation_df(
     except (ValueError, TypeError):
         net_cash = None
     price_net_cash = handle_divide_by_zero(market_cap, net_cash)
-    preferred_stock_equity = summarised_df.loc["preferredStockTotalEquity"].iloc[-1]
+    preferred_stock_equity = summarised_df.loc["preferredStockTotalEquity"].iloc[-1] if "preferredStockTotalEquity" in summarised_df.index else 0
     try:
         net_net = current_assets - (
             total_liabilities
@@ -229,15 +233,15 @@ def create_valuation_df(
         net_net = None
     price_net_net = handle_divide_by_zero(market_cap, net_net)
     debt_to_equity = handle_divide_by_zero(
-        total_liabilities, summarised_df.loc["totalStockholderEquity"].iloc[-1]
+        total_liabilities, summarised_df.loc["totalStockholderEquity"].iloc[-1] if "totalStockholderEquity" in summarised_df.index else 0
     )
 
     # Cash Flow
     price_operating_cash_flow = handle_divide_by_zero(
-        market_cap, summarised_df.loc["totalCashFromOperatingActivities"].iloc[-1]
+        market_cap, summarised_df.loc["totalCashFromOperatingActivities"].iloc[-1] if "totalCashFromOperatingActivities" in summarised_df.index else 0
     )
     price_free_cash_flow = handle_divide_by_zero(
-        market_cap, summarised_df.loc["freeCashFlow"].iloc[-1]
+        market_cap, summarised_df.loc["freeCashFlow"].iloc[-1] if "freeCashFlow" in summarised_df.index else 0
     )
     dividend_per_share = json_data["Highlights"]["DividendShare"]
     dividend_yield = json_data["Highlights"]["DividendYield"] or 0
@@ -247,8 +251,8 @@ def create_valuation_df(
         dividend = None
     price_dividend = handle_divide_by_zero(market_cap, dividend)
     interest_coverage_ratio = handle_divide_by_zero(
-        summarised_df.loc["ebit"].iloc[-1],
-        summarised_df.loc["interestExpense"].iloc[-1],
+        summarised_df.loc["ebit"].iloc[-1] if "ebit" in summarised_df.index else 0,
+        summarised_df.loc["interestExpense"].iloc[-1] if "interestExpense" in summarised_df.index else 0,
     )
     """
 	DSCR =  Net Operating Income / Debt Service
@@ -367,44 +371,65 @@ def calculate_leverage_df(
     asset_coverage_ratio: float,
 ):
     # Net Common Overhang
-    net_common_overhang = total_debt - total_cash
+    try:
+        net_common_overhang = total_debt - total_cash
+    except (TypeError, ValueError):
+        net_common_overhang = 0
 
     # Market Cap / EV Ratio
-    mc_ev_ratio = market_cap / enterprise_value
+    try:
+        mc_ev_ratio = market_cap / enterprise_value
+    except (TypeError, ValueError, ZeroDivisionError):
+        mc_ev_ratio = None
 
     # Compute a blended leverage score
-    # Normalize metrics using log scaling to reduce extreme value impact
-    debt_equity_scaled = np.log1p(debt_to_equity)  # log(1 + x) to avoid zero issues
-    interest_cov_scaled = np.log1p(
-        1 + max(0, (5 - interest_coverage_ratio))
-    )  # Reciprocal, lower is better
-    mc_ev_scaled = np.log1p(
-        1 + (1 - mc_ev_ratio)
-    )  # Higher MC/EV means lower debt reliance
-    asset_cov_scaled = np.log1p(
-        1 + max(0, (10 - asset_coverage_ratio))
-    )  # Reciprocal, lower is better
+    # Normalization (inverted for ICR and ACR since higher means less leverage)
+    def normalize(value, min_val, max_val, invert=False) -> (float, None):
+        try:
+            if value < min_val:
+                value = min_val
+            norm = (value - min_val) / (max_val - min_val)
+            norm = max(0, min(norm, 1))
+        except (TypeError, ValueError):
+            return None
+        return 1 - norm if invert else norm
 
-    # Weighted sum approach
-    blended_score = (
-        0.35 * debt_equity_scaled
-        + 0.25 * interest_cov_scaled
-        + 0.20 * mc_ev_scaled
-        + 0.20 * asset_cov_scaled
-    )
+    # Define reasonable industry ranges
+    debt_to_equity_score = normalize(debt_to_equity, 0, 5)  # 0-5 is reasonable range
+    interest_coverage_score = normalize(interest_coverage_ratio, -10, 50, invert=True)  # Lower means more risk
+    mc_ev_score = normalize(mc_ev_ratio, 0, 2, invert=True)  # Lower means more debt use
+    asset_coverage_score = normalize(asset_coverage_ratio, -5, 10, invert=True)  # Lower means less asset backing
+
+    # Assign weights
+    weights = np.array([0.4, 0.3, 0.2, 0.1])  # D/E most important
+
+    # Compute blended leverage score
+    scores = np.array([debt_to_equity_score, interest_coverage_score, mc_ev_score, asset_coverage_score])
+
+    valid_indices = [i for i in range(len(scores)) if scores[i] is not None]
+    filtered_scores = scores[valid_indices]
+    filtered_weights = weights[valid_indices]
+
+    # Normalize weights to sum to 1
+    filtered_weights = filtered_weights / filtered_weights.sum()
+    blended_score = np.dot(filtered_weights, filtered_scores)
 
     # Categorize Leverage
     def categorize_leverage(score):
-        if score > 1.5:
+        if score > 0.7:
             return Leverage.highly_levered.value
-        elif score > 0.8:
+        elif score > 0.4:
             return Leverage.levered.value
-        elif score > 0.3:
+        elif score > 0.2:
             return Leverage.minimally_levered.value
         else:
             return Leverage.not_levered.value
 
-    leverage_category = categorize_leverage(blended_score)
+    if blended_score:
+        leverage_category = categorize_leverage(blended_score)
+    else:
+        leverage_category = Leverage.unkown.value
+
     leverage_dict = {
         "Net Common Overhang": net_common_overhang,
         "Debt/Equity": debt_to_equity,
@@ -481,16 +506,19 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
     hl_df.loc["ROE Avg3"] = (
         hl_df.loc["netIncome"]
         / hl_df.loc["totalStockholderEquity"].rolling(window=3, min_periods=1).mean()
+        if "totalStockholderEquity" in hl_df.index else 0
     )
     net_operating_profit_after_tax = hl_df.loc["ebit"] - hl_df.loc["incomeTaxExpense"]
     non_interest_bearing_current_liabilities = (
         hl_df.loc["totalCurrentLiabilities"] - hl_df.loc["shortTermDebt"]
+        if "totalCurrentLiabilities" in hl_df.index else 0
     )
     invested_capital = hl_df.loc["totalAssets"] - (
         hl_df.loc["cash"] + non_interest_bearing_current_liabilities
     )
     invested_capital_damodaran = (
         hl_df.loc["totalLiab"] + hl_df.loc["totalStockholderEquity"] - hl_df.loc["cash"]
+        if "totalStockholderEquity" in hl_df.index else 0
     )
     other_invested_capital = (
         hl_df.loc["netWorkingCapital"] + hl_df.loc["propertyPlantAndEquipmentNet"]
@@ -617,6 +645,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "Common EPS",
         "EPS Increase 3yr",
         "EBITDA /sh",
+        "freeCashFlow",
         "CFO /sh",
         "FCF /sh",
         "RND Margin",
@@ -656,6 +685,7 @@ def create_highlights_df(hl_df: pd.DataFrame) -> pd.DataFrame:
         "CFO /sh",
         "FCF /sh",
         "Net Income",
+        "Free Cash Flow",
         "Assets /sh",
         "Book /sh",
         "Tang Book /sh",
@@ -1020,7 +1050,7 @@ def print_individual_finances(json_data: dict, current_price: float) -> None:
         )
 
     combined_html += f"<h2{align}>Leverage Ratios</h2>" + levereage_df.to_html(
-        classes="short-table", index=False, escape=False
+        classes="medium-table", index=False, escape=False
     )
 
     for df, title in zip(financial_statement_dataframes, financial_statements.keys()):
